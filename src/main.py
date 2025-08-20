@@ -9,10 +9,10 @@ import argparse
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-from .pdf_processor import PDFProcessor
-from .section_parser import SectionParser
-from .comparison_engine import ComparisonEngine
-from .report_generator import ReportGenerator
+from src.pdf_processor import PDFProcessor
+from src.section_parser import SectionParser
+from src.comparison_engine import ComparisonEngine, Section
+from src.report_generator import ReportGenerator
 
 # Configure logging
 logging.basicConfig(
@@ -100,12 +100,32 @@ class RSIComparisonTool:
             logger.info("Generating output reports...")
             report_paths = self._generate_reports(comparison_results, summary, output_dir)
             
+            # Convert sections to serializable format for web interface
+            comparator_sections_serializable = {}
+            our_sections_serializable = {}
+            
+            for section_name, section in comparator_sections.items():
+                comparator_sections_serializable[section_name] = {
+                    'content': section.content,
+                    'confidence': section.confidence,
+                    'start_line': section.start_line,
+                    'end_line': section.end_line
+                }
+            
+            for section_name, section in our_sections.items():
+                our_sections_serializable[section_name] = {
+                    'content': section.content,
+                    'confidence': section.confidence,
+                    'start_line': section.start_line,
+                    'end_line': section.end_line
+                }
+            
             return {
                 'comparison_results': comparison_results,
                 'summary': summary,
                 'report_paths': report_paths,
-                'comparator_sections': comparator_sections,
-                'our_sections': our_sections
+                'comparator_sections': comparator_sections_serializable,
+                'our_sections': our_sections_serializable
             }
             
         except Exception as e:

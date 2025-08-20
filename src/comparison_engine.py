@@ -11,7 +11,6 @@ import re
 import logging
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
-from .section_parser import Section
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,22 +26,21 @@ class ComparisonResult:
     comparison_method: str
     details: Dict[str, Any]
 
+class Section:
+    """Represents a section in an RSI document"""
+    def __init__(self, name: str, content: str, start_line: int, end_line: int, confidence: float):
+        self.name = name
+        self.content = content
+        self.start_line = start_line
+        self.end_line = end_line
+        self.confidence = confidence
+
 class ComparisonEngine:
     """Compares RSI documents section by section"""
     
     def __init__(self, similarity_threshold: float = 0.7):
         self.similarity_threshold = similarity_threshold
-        self.sentence_model = None
-        self._initialize_sentence_model()
-    
-    def _initialize_sentence_model(self):
-        """Initialize the sentence transformer model for semantic similarity"""
-        try:
-            self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
-            logger.info("Sentence transformer model loaded successfully")
-        except Exception as e:
-            logger.warning(f"Could not load sentence transformer model: {e}")
-            self.sentence_model = None
+        # Removed sentence model initialization for speed
     
     def compare_documents(self, comparator_sections: Dict[str, Section], 
                          our_sections: Dict[str, Section]) -> Dict[str, ComparisonResult]:
@@ -79,26 +77,21 @@ class ComparisonEngine:
         return results
     
     def _compare_sections(self, comparator_section: Section, our_section: Section) -> ComparisonResult:
-        """Compare two sections using multiple methods"""
+        """Compare two sections using optimized fast methods"""
         comparator_text = comparator_section.content
         our_text = our_section.content
         
-        # Method 1: Exact text matching
-        exact_match = self._exact_text_comparison(comparator_text, our_text)
-        
-        # Method 2: Fuzzy string matching
+        # Use fast fuzzy matching as primary method
         fuzzy_match = self._fuzzy_text_comparison(comparator_text, our_text)
         
-        # Method 3: Semantic similarity (if model available)
-        semantic_match = None
-        if self.sentence_model:
-            semantic_match = self._semantic_similarity_comparison(comparator_text, our_text)
-        
-        # Method 4: Sentence-level comparison
+        # Use sentence-level comparison for detailed analysis
         sentence_comparison = self._sentence_level_comparison(comparator_text, our_text)
         
-        # Determine the best method and overall result
-        best_method = self._determine_best_method(exact_match, fuzzy_match, semantic_match, sentence_comparison)
+        # Use the method with better results
+        if sentence_comparison['score'] > fuzzy_match['score']:
+            best_method = sentence_comparison
+        else:
+            best_method = fuzzy_match
         
         return ComparisonResult(
             section_name=comparator_section.name,
@@ -107,9 +100,7 @@ class ComparisonEngine:
             present_content=best_method['present'],
             comparison_method=best_method['method'],
             details={
-                'exact_match': exact_match,
                 'fuzzy_match': fuzzy_match,
-                'semantic_match': semantic_match,
                 'sentence_comparison': sentence_comparison
             }
         )

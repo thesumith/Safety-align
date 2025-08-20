@@ -14,11 +14,21 @@ import os
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from .comparison_engine import ComparisonResult
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class ComparisonResult:
+    """Represents the result of comparing two sections"""
+    def __init__(self, section_name: str, similarity_score: float, missing_content: List[str], 
+                 present_content: List[str], comparison_method: str, details: Dict[str, Any]):
+        self.section_name = section_name
+        self.similarity_score = similarity_score
+        self.missing_content = missing_content
+        self.present_content = present_content
+        self.comparison_method = comparison_method
+        self.details = details
 
 class ReportGenerator:
     """Generates various report formats for RSI comparison results"""
