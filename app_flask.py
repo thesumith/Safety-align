@@ -57,6 +57,20 @@ def compare_documents():
         tool = RSIComparisonTool(similarity_threshold)
         results = tool.compare_rsis(comparator_path, our_path, output_dir)
         
+        # Add debugging information
+        print(f"DEBUG: Found {len(results.get('comparator_sections', {}))} comparator sections")
+        print(f"DEBUG: Found {len(results.get('our_sections', {}))} our sections")
+        print(f"DEBUG: Comparison results keys: {list(results.get('comparison_results', {}).keys())}")
+        
+        # Debug section content
+        for section_name, section_data in results.get('comparator_sections', {}).items():
+            print(f"DEBUG: Comparator section '{section_name}': {len(section_data.get('content', ''))} chars")
+            print(f"DEBUG: First 100 chars: {section_data.get('content', '')[:100]}...")
+        
+        for section_name, section_data in results.get('our_sections', {}).items():
+            print(f"DEBUG: Our section '{section_name}': {len(section_data.get('content', ''))} chars")
+            print(f"DEBUG: First 100 chars: {section_data.get('content', '')[:100]}...")
+        
         # Clean up uploaded files
         os.remove(comparator_path)
         os.remove(our_path)

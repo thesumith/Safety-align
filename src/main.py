@@ -73,6 +73,29 @@ class RSIComparisonTool:
             logger.info(f"Found {len(comparator_sections)} sections in comparator RSI")
             logger.info(f"Found {len(our_sections)} sections in our RSI")
             
+            # If no sections found, create a whole document section
+            if not comparator_sections and comparator_text.strip():
+                from src.section_parser import Section
+                comparator_sections['full_document'] = Section(
+                    name='full_document',
+                    content=comparator_text.strip(),
+                    start_line=0,
+                    end_line=len(comparator_text.split('\n')),
+                    confidence=0.5
+                )
+                logger.info("No sections found in comparator - using full document")
+            
+            if not our_sections and our_text.strip():
+                from src.section_parser import Section
+                our_sections['full_document'] = Section(
+                    name='full_document',
+                    content=our_text.strip(),
+                    start_line=0,
+                    end_line=len(our_text.split('\n')),
+                    confidence=0.5
+                )
+                logger.info("No sections found in our RSI - using full document")
+            
             # Log section summary
             comparator_summary = self.section_parser.get_section_summary(comparator_sections)
             our_summary = self.section_parser.get_section_summary(our_sections)
