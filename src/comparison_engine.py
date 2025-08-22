@@ -49,8 +49,20 @@ class ComparisonEngine:
     
     def compare_documents(self, comparator_sections: Dict[str, Section], 
                          our_sections: Dict[str, Section]) -> Dict[str, ComparisonResult]:
-        """Lightning-fast document comparison"""
+        """Comprehensive document comparison ensuring all sections are analyzed in specified order"""
         results = {}
+        
+        # Define the specific order for SmPC sections as requested
+        section_order = [
+            'therapeutic_indications',      # 4.1 Therapeutic indications
+            'contraindications',            # 4.3 Contraindications
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
+            'undesirable_effects',          # 4.8 Undesirable effects
+            'overdose'                      # 4.9 Overdose
+        ]
         
         # Handle edge cases quickly
         if not comparator_sections and not our_sections:
@@ -61,31 +73,139 @@ class ComparisonEngine:
                    for name, section in our_sections.items()}
         
         if not our_sections:
-            return {name: self._create_missing_section_result(name, section) 
-                   for name, section in comparator_sections.items()}
+            # Return missing sections in the specified order
+            ordered_results = {}
+            for section_name in section_order:
+                if section_name in comparator_sections:
+                    ordered_results[section_name] = self._create_missing_section_result(
+                        section_name, comparator_sections[section_name])
+            # Add any remaining sections not in the specified order
+            for name, section in comparator_sections.items():
+                if name not in ordered_results:
+                    ordered_results[name] = self._create_missing_section_result(name, section)
+            return ordered_results
         
-        # Fast section matching and comparison
-        section_matches = self._fast_section_matching(comparator_sections, our_sections)
+        # Enhanced section matching with content-based fallback
+        section_matches = self._comprehensive_section_matching(comparator_sections, our_sections)
         
-        # Compare matched sections
-        for comp_name, our_name in section_matches.items():
-            comparator_section = comparator_sections[comp_name]
-            our_section = our_sections[our_name]
-            results[comp_name] = self._fast_compare_sections(comparator_section, our_section)
+        # Compare sections in the specified order first
+        ordered_results = {}
+        processed_sections = set()
         
-        # Handle unmatched sections
-        unmatched_comp = set(comparator_sections.keys()) - set(section_matches.keys())
+        for section_name in section_order:
+            if section_name in section_matches:
+                # Found a matched section
+                comp_name = section_name
+                our_name = section_matches[section_name]
+                comparator_section = comparator_sections[comp_name]
+                our_section = our_sections[our_name]
+                ordered_results[comp_name] = self._fast_compare_sections(comparator_section, our_section)
+                processed_sections.add(comp_name)
+            elif section_name in comparator_sections:
+                # Section exists in comparator but not matched - try content-based matching
+                comp_section = comparator_sections[section_name]
+                unmatched_our = set(our_sections.keys()) - set(section_matches.values())
+                best_match = self._find_best_content_match(comp_section, unmatched_our, our_sections)
+                
+                if best_match:
+                    our_section = our_sections[best_match]
+                    ordered_results[section_name] = self._fast_compare_sections(comp_section, our_section)
+                    # Update section_matches to reflect this new match
+                    section_matches[section_name] = best_match
+                else:
+                    # Truly missing section
+                    ordered_results[section_name] = self._create_missing_section_result(
+                        section_name, comp_section)
+                processed_sections.add(section_name)
+        
+        # Handle remaining sections not in the specified order
+        unmatched_comp = set(comparator_sections.keys()) - processed_sections
         unmatched_our = set(our_sections.keys()) - set(section_matches.values())
         
-        for section_name in unmatched_comp:
-            results[section_name] = self._create_missing_section_result(
-                section_name, comparator_sections[section_name])
+        # Compare remaining matched sections
+        for comp_name, our_name in section_matches.items():
+            if comp_name not in processed_sections:
+                comparator_section = comparator_sections[comp_name]
+                our_section = our_sections[our_name]
+                ordered_results[comp_name] = self._fast_compare_sections(comparator_section, our_section)
         
-        for section_name in unmatched_our:
-            results[f"extra_{section_name}"] = self._create_extra_section_result(
-                section_name, our_sections[section_name])
+        # For remaining unmatched comparator sections
+        for comp_section_name in unmatched_comp:
+            comp_section = comparator_sections[comp_section_name]
+            best_match = self._find_best_content_match(comp_section, unmatched_our, our_sections)
+            
+            if best_match:
+                # Found a content-based match
+                our_section = our_sections[best_match]
+                ordered_results[comp_section_name] = self._fast_compare_sections(comp_section, our_section)
+                unmatched_our.remove(best_match)  # Remove from unmatched
+            else:
+                # Truly missing section
+                ordered_results[comp_section_name] = self._create_missing_section_result(
+                    comp_section_name, comp_section)
         
-        return results
+        # For remaining unmatched our sections, try to find best content match in comparator
+        for our_section_name in unmatched_our:
+            our_section = our_sections[our_section_name]
+            
+            # Check if this could match any critical section type
+            if self._is_critical_section(our_section_name):
+                # Try to find content-based match in all comparator sections
+                best_match = self._find_best_content_match(our_section, comparator_sections.keys(), comparator_sections)
+                
+                if best_match and best_match not in section_matches and best_match not in ordered_results:
+                    # Found content match - create comparison under our section name
+                    comp_section = comparator_sections[best_match]
+                    ordered_results[our_section_name] = self._fast_compare_sections(comp_section, our_section)
+                else:
+                    # This is a critical section missing from comparator - compare against full document
+                    full_comparator_content = self._get_full_document_content(comparator_sections)
+                    if full_comparator_content:
+                        pseudo_comp_section = Section(
+                            name=our_section_name,
+                            content=full_comparator_content,
+                            start_line=0,
+                            end_line=1000,
+                            confidence=0.3
+                        )
+                        ordered_results[our_section_name] = self._fast_compare_sections(pseudo_comp_section, our_section)
+                    else:
+                        # Fallback to extra section
+                        ordered_results[f"extra_{our_section_name}"] = self._create_extra_section_result(
+                            our_section_name, our_section)
+            else:
+                # Non-critical extra section
+                ordered_results[f"extra_{our_section_name}"] = self._create_extra_section_result(
+                    our_section_name, our_section)
+        
+        return self._ensure_section_order(ordered_results)
+    
+    def _ensure_section_order(self, results: Dict[str, ComparisonResult]) -> Dict[str, ComparisonResult]:
+        """Ensure results are returned in the specified section order"""
+        section_order = [
+            'therapeutic_indications',      # 4.1 Therapeutic indications
+            'contraindications',            # 4.3 Contraindications
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
+            'undesirable_effects',          # 4.8 Undesirable effects
+            'overdose'                      # 4.9 Overdose
+        ]
+        
+        ordered_results = {}
+        
+        # First, add sections in the specified order
+        for section_name in section_order:
+            if section_name in results:
+                ordered_results[section_name] = results[section_name]
+        
+        # Then add any remaining sections
+        for section_name, result in results.items():
+            if section_name not in ordered_results:
+                ordered_results[section_name] = result
+        
+        return ordered_results
     
     def _fast_section_matching(self, comp_sections: Dict[str, Section], 
                               our_sections: Dict[str, Section]) -> Dict[str, str]:
@@ -140,6 +260,107 @@ class ComparisonEngine:
                     our_names.remove(best_match[0])  # Avoid duplicate matches
         
         return matches
+    
+    def _comprehensive_section_matching(self, comp_sections: Dict[str, Section], 
+                                       our_sections: Dict[str, Section]) -> Dict[str, str]:
+        """Enhanced section matching with better content analysis"""
+        # Start with the existing fast matching
+        matches = self._fast_section_matching(comp_sections, our_sections)
+        
+        # For unmatched sections, try content-based matching
+        unmatched_comp = set(comp_sections.keys()) - set(matches.keys())
+        unmatched_our = set(our_sections.keys()) - set(matches.values())
+        
+        for comp_name in list(unmatched_comp):
+            comp_section = comp_sections[comp_name]
+            best_match = self._find_best_content_match(comp_section, unmatched_our, our_sections)
+            
+            if best_match:
+                matches[comp_name] = best_match
+                unmatched_our.remove(best_match)
+                unmatched_comp.remove(comp_name)
+        
+        return matches
+    
+    def _find_best_content_match(self, target_section: Section, candidate_names: Set[str], 
+                                candidate_sections: Dict[str, Section]) -> Optional[str]:
+        """Find best content-based match for a section"""
+        if not candidate_names:
+            return None
+        
+        target_content = self._normalize_text(target_section.content).lower()
+        target_words = set(self._get_words_fast(target_content))
+        
+        best_match = None
+        best_score = 0.3  # Minimum threshold for content matching
+        
+        for candidate_name in candidate_names:
+            candidate_section = candidate_sections[candidate_name]
+            candidate_content = self._normalize_text(candidate_section.content).lower()
+            candidate_words = set(self._get_words_fast(candidate_content))
+            
+            # Calculate word overlap score
+            if target_words and candidate_words:
+                overlap = len(target_words & candidate_words)
+                union = len(target_words | candidate_words)
+                jaccard_score = overlap / union if union > 0 else 0
+                
+                # Bonus for section type similarity
+                type_bonus = self._calculate_section_type_similarity(target_section.name, candidate_name)
+                final_score = jaccard_score + type_bonus
+                
+                if final_score > best_score:
+                    best_score = final_score
+                    best_match = candidate_name
+        
+        return best_match
+    
+    def _is_critical_section(self, section_name: str) -> bool:
+        """Check if a section is critical for SmPC comparison (based on the specified order)"""
+        critical_sections = {
+            'therapeutic_indications',      # 4.1 Therapeutic indications
+            'contraindications',            # 4.3 Contraindications
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
+            'undesirable_effects',          # 4.8 Undesirable effects
+            'overdose',                     # 4.9 Overdose
+            # Also include posology for backward compatibility
+            'posology_administration'
+        }
+        return section_name in critical_sections
+    
+    def _calculate_section_type_similarity(self, section1: str, section2: str) -> float:
+        """Calculate similarity bonus based on section type"""
+        # If sections are the same type, give a bonus
+        if section1 == section2:
+            return 0.2
+        
+        # Check for related section types
+        related_groups = [
+            {'therapeutic_indications', 'indications'},
+            {'posology_administration', 'posology', 'dosage'},
+            {'special_warnings_precautions', 'warnings_precautions', 'warnings', 'precautions'},
+            {'interactions_medicinal_products', 'interactions', 'drug_interactions'},
+            {'fertility_pregnancy_lactation', 'fertility_pregnancy', 'pregnancy'},
+            {'effects_ability_drive_machines', 'driving_machines'},
+            {'undesirable_effects', 'adverse_reactions'},
+        ]
+        
+        for group in related_groups:
+            if section1 in group and section2 in group:
+                return 0.1
+        
+        return 0.0
+    
+    def _get_full_document_content(self, sections: Dict[str, Section]) -> str:
+        """Get concatenated content from all sections for full document comparison"""
+        all_content = []
+        for section in sections.values():
+            if section.content.strip():
+                all_content.append(section.content.strip())
+        return '\n\n'.join(all_content)
     
     def _fast_compare_sections(self, comparator_section: Section, our_section: Section) -> ComparisonResult:
         """Ultra-fast section comparison using optimized algorithms"""
