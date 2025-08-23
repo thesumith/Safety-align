@@ -161,11 +161,6 @@ class RSIComparisonTool:
         report_paths = {}
         
         try:
-            # Generate HTML report
-            html_path = os.path.join(output_dir, "rsi_comparison_report.html")
-            self.report_generator.generate_html_report(comparison_results, summary, html_path)
-            report_paths['html'] = html_path
-            
             # Generate Excel report
             excel_path = os.path.join(output_dir, "rsi_comparison_report.xlsx")
             self.report_generator.generate_excel_report(comparison_results, summary, excel_path)

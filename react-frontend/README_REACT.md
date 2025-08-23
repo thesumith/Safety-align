@@ -26,7 +26,7 @@ A modern, responsive React.js frontend for the RSI Comparison Tool. This fronten
 - **Summary Dashboard**: Key metrics and overview statistics
 - **Interactive Charts**: Pie charts and bar charts using Recharts
 - **Issues Tracking**: Highlighted sections needing attention
-- **Download Options**: HTML, Excel, and PDF report downloads
+- **Download Options**: Excel and PDF report downloads
 
 ### Settings & Configuration
 - **Similarity Threshold**: Adjustable comparison sensitivity

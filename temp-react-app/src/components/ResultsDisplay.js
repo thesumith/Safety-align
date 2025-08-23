@@ -208,14 +208,6 @@ const ResultsDisplay = ({ results, outputDir, onReset }) => {
           <div className="download-buttons">
             <button 
               className="btn btn-primary"
-              onClick={() => handleDownload('html')}
-              disabled={downloading}
-            >
-              <FaDownload />
-              HTML Report
-            </button>
-            <button 
-              className="btn btn-primary"
               onClick={() => handleDownload('excel')}
               disabled={downloading}
             >

@@ -98,20 +98,14 @@ def download_report(report_type):
         if not output_dir or not os.path.exists(output_dir):
             return jsonify({'success': False, 'error': 'Report not found'})
         
-        if report_type == 'html':
-            html_file = os.path.join(output_dir, 'comparison_report.html')
-            if os.path.exists(html_file):
-                return send_file(html_file, as_attachment=True, 
-                               download_name=f'rsi_comparison_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html')
-        
-        elif report_type == 'excel':
-            excel_file = os.path.join(output_dir, 'comparison_report.xlsx')
+        if report_type == 'excel':
+            excel_file = os.path.join(output_dir, 'rsi_comparison_report.xlsx')
             if os.path.exists(excel_file):
                 return send_file(excel_file, as_attachment=True,
                                download_name=f'rsi_comparison_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
         
         elif report_type == 'pdf':
-            pdf_file = os.path.join(output_dir, 'comparison_report.pdf')
+            pdf_file = os.path.join(output_dir, 'rsi_comparison_report.pdf')
             if os.path.exists(pdf_file):
                 return send_file(pdf_file, as_attachment=True,
                                download_name=f'rsi_comparison_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
@@ -122,7 +116,7 @@ def download_report(report_type):
             with zipfile.ZipFile(zip_path, 'w') as zipf:
                 for filename in os.listdir(output_dir):
                     file_path = os.path.join(output_dir, filename)
-                    if os.path.isfile(file_path) and filename.endswith(('.html', '.xlsx', '.pdf')):
+                    if os.path.isfile(file_path) and filename.endswith(('.xlsx', '.pdf')):
                         zipf.write(file_path, filename)
             
             return send_file(zip_path, as_attachment=True,

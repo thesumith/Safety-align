@@ -81,7 +81,6 @@ def main():
         
         # Report formats
         st.subheader("Report Formats")
-        generate_html = st.checkbox("HTML Report", value=True)
         generate_excel = st.checkbox("Excel Report", value=True)
         generate_pdf = st.checkbox("PDF Report", value=True)
         
@@ -172,9 +171,9 @@ def main():
     
     # Display results
     if hasattr(st.session_state, 'comparison_completed') and st.session_state.comparison_completed:
-        display_results(st.session_state.comparison_results, generate_html, generate_excel, generate_pdf)
+        display_results(st.session_state.comparison_results, generate_excel, generate_pdf)
 
-def display_results(results, generate_html, generate_excel, generate_pdf):
+def display_results(results, generate_excel, generate_pdf):
     """Display comparison results"""
     
     comparison_results = results['comparison_results']
@@ -229,13 +228,14 @@ def display_results(results, generate_html, generate_excel, generate_pdf):
                 'Section': section_name.replace('_', ' ').title(),
                 'Similarity': result.similarity_score,
                 'Missing Items': len(result.missing_content),
-                'Present Items': len(result.present_content)
+                'Present Items': len(result.present_content),
+                'Method': result.comparison_method.replace('_', ' ').title()
             })
     
     if chart_data:
         df_chart = pd.DataFrame(chart_data)
         
-        # Create bar chart
+        # Create enhanced bar chart
         fig = px.bar(
             df_chart,
             x='Section',
@@ -243,16 +243,61 @@ def display_results(results, generate_html, generate_excel, generate_pdf):
             color='Similarity',
             color_continuous_scale='RdYlGn',
             title='Section Similarity Scores',
-            labels={'Similarity': 'Similarity Score', 'Section': 'Section Name'}
+            labels={'Similarity': 'Similarity Score', 'Section': 'Section Name'},
+            hover_data=['Missing Items', 'Present Items', 'Method'],
+            text='Similarity'
         )
         
+        # Update layout for better appearance
         fig.update_layout(
             xaxis_tickangle=-45,
-            height=400,
-            showlegend=False
+            height=500,
+            showlegend=False,
+            title_font_size=18,
+            title_x=0.5,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=50, r=50, t=80, b=100)
+        )
+        
+        # Update traces for better text formatting
+        fig.update_traces(
+            texttemplate='%{text:.1%}',
+            textposition='outside',
+            marker_line_color='rgb(8,48,107)',
+            marker_line_width=1.5,
+            opacity=0.8
+        )
+        
+        # Update axes
+        fig.update_xaxes(
+            title_font_size=14,
+            tickfont_size=12,
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='lightgray'
+        )
+        
+        fig.update_yaxes(
+            title_font_size=14,
+            tickfont_size=12,
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='lightgray',
+            range=[0, 1.1],
+            tickformat='.0%'
         )
         
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Add chart explanation
+        st.markdown("""
+        **Chart Explanation:**
+        - **Green bars**: High similarity (≥80%)
+        - **Yellow bars**: Medium similarity (60-79%)
+        - **Red bars**: Low similarity (<60%)
+        - Hover over bars to see detailed information
+        """)
     
     # Detailed results
     st.subheader("🔍 Detailed Section Analysis")
@@ -327,22 +372,12 @@ def display_results(results, generate_html, generate_excel, generate_pdf):
                 st.markdown(f"**Method:** {result.comparison_method.replace('_', ' ').title()}")
     
     # Download reports
-    if generate_html or generate_excel or generate_pdf:
+    if generate_excel or generate_pdf:
         st.subheader("📥 Download Reports")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if generate_html:
-                html_content = generate_html_report(results)
-                st.download_button(
-                    label="📄 Download HTML Report",
-                    data=html_content,
-                    file_name=f"rsi_comparison_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
-                    mime="text/html"
-                )
-        
-        with col2:
             if generate_excel:
                 excel_content = generate_excel_report(results)
                 st.download_button(
@@ -352,7 +387,7 @@ def display_results(results, generate_html, generate_excel, generate_pdf):
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
         
-        with col3:
+        with col2:
             if generate_pdf:
                 pdf_content = generate_pdf_report(results)
                 st.download_button(
@@ -362,66 +397,66 @@ def display_results(results, generate_html, generate_excel, generate_pdf):
                     mime="application/pdf"
                 )
 
-def generate_html_report(results):
-    """Generate HTML report content"""
-    from src.report_generator import ReportGenerator
-    
-    report_gen = ReportGenerator()
-    html_content = report_gen._generate_html_content(
-        results['comparison_results'], 
-        results['summary']
-    )
-    return html_content
-
 def generate_excel_report(results):
     """Generate Excel report content"""
-    # This would require more complex handling for binary data
-    # For now, we'll create a simple Excel file
     import io
+    import tempfile
+    import os
+    from src.report_generator import ReportGenerator
     
-    # Create a simple Excel report
-    output = io.BytesIO()
+    # Create a temporary file for the Excel report
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_file:
+        temp_path = tmp_file.name
     
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        # Summary sheet
-        summary_data = [
-            ['Metric', 'Value'],
-            ['Overall Similarity', f"{results['summary']['overall_similarity']:.1%}"],
-            ['Total Sections Compared', results['summary']['total_sections_compared']],
-            ['Sections with Issues', results['summary']['sections_with_issues']],
-            ['Missing Sections', len(results['summary']['missing_sections'])]
-        ]
+    try:
+        # Use the report generator to create the Excel file
+        report_gen = ReportGenerator()
+        report_gen.generate_excel_report(
+            results['comparison_results'], 
+            results['summary'], 
+            temp_path
+        )
         
-        df_summary = pd.DataFrame(summary_data[1:], columns=summary_data[0])
-        df_summary.to_excel(writer, sheet_name='Summary', index=False)
+        # Read the generated file
+        with open(temp_path, 'rb') as f:
+            excel_content = f.read()
         
-        # Detailed comparison sheet
-        comparison_data = []
-        for section_name, result in results['comparison_results'].items():
-            if not section_name.startswith('extra_'):
-                comparison_data.append([
-                    section_name.replace('_', ' ').title(),
-                    f"{result.similarity_score:.1%}",
-                    result.comparison_method.replace('_', ' ').title(),
-                    len(result.missing_content),
-                    len(result.present_content)
-                ])
+        return excel_content
         
-        if comparison_data:
-            df_comparison = pd.DataFrame(comparison_data, columns=[
-                'Section', 'Similarity Score', 'Comparison Method', 
-                'Missing Items Count', 'Present Items Count'
-            ])
-            df_comparison.to_excel(writer, sheet_name='Detailed Comparison', index=False)
-    
-    output.seek(0)
-    return output.getvalue()
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 def generate_pdf_report(results):
     """Generate PDF report content"""
-    # This would require more complex handling for binary data
-    # For now, return a placeholder
-    return b"PDF report generation not implemented in web interface"
+    import tempfile
+    import os
+    from src.report_generator import ReportGenerator
+    
+    # Create a temporary file for the PDF report
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+        temp_path = tmp_file.name
+    
+    try:
+        # Use the report generator to create the PDF file
+        report_gen = ReportGenerator()
+        report_gen.generate_pdf_report(
+            results['comparison_results'], 
+            results['summary'], 
+            temp_path
+        )
+        
+        # Read the generated file
+        with open(temp_path, 'rb') as f:
+            pdf_content = f.read()
+        
+        return pdf_content
+        
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 if __name__ == "__main__":
     main()
