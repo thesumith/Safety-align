@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FaCloudUploadAlt, FaFilePdf, FaCog, FaPlay } from 'react-icons/fa';
+import { FaCloudUploadAlt, FaFilePdf, FaPlay } from 'react-icons/fa';
 import axios from 'axios';
 import './FileUpload.css';
 
@@ -83,144 +83,70 @@ const FileUpload = ({
 
   return (
     <div className="file-upload-container animate-fade-in">
-      <div className="row">
-        <div className="col-8">
-          <div className="upload-section">
-            <h2>Upload RSI Documents</h2>
-            <p className="text-muted">Upload two PDF files to compare their content</p>
-            
-            <div className="upload-grid">
-              <div className="upload-card">
-                <h3>Comparator RSI</h3>
-                <div 
-                  {...getComparatorRootProps()} 
-                  className={`dropzone ${isComparatorDragActive ? 'dragover' : ''}`}
-                >
-                  <input {...getComparatorInputProps()} />
-                  <FaCloudUploadAlt className="upload-icon" />
-                  <p>Drag & drop comparator PDF here, or click to select</p>
-                  <span className="file-type">PDF files only</span>
-                </div>
-                {files.comparator && (
-                  <div className="file-info">
-                    <FaFilePdf className="file-icon" />
-                    <span>{files.comparator.name}</span>
-                    <button 
-                      className="btn btn-sm btn-danger"
-                      onClick={() => removeFile('comparator')}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="upload-card">
-                <h3>Our RSI</h3>
-                <div 
-                  {...getOurRootProps()} 
-                  className={`dropzone ${isOurDragActive ? 'dragover' : ''}`}
-                >
-                  <input {...getOurInputProps()} />
-                  <FaCloudUploadAlt className="upload-icon" />
-                  <p>Drag & drop our RSI PDF here, or click to select</p>
-                  <span className="file-type">PDF files only</span>
-                </div>
-                {files.our && (
-                  <div className="file-info">
-                    <FaFilePdf className="file-icon" />
-                    <span>{files.our.name}</span>
-                    <button 
-                      className="btn btn-sm btn-danger"
-                      onClick={() => removeFile('our')}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <button
-              className="btn btn-primary btn-lg compare-btn"
-              onClick={handleSubmit}
-              disabled={!files.comparator || !files.our || uploading}
+      <div className="upload-section">
+        <h2>Upload RSI Documents</h2>
+        <p className="text-muted">Upload two PDF files to compare their content</p>
+        
+        <div className="upload-grid">
+          <div className="upload-card">
+            <h3>Comparator RSI</h3>
+            <div 
+              {...getComparatorRootProps()} 
+              className={`dropzone ${isComparatorDragActive ? 'dragover' : ''}`}
             >
-              <FaPlay />
-              {uploading ? 'Comparing...' : 'Start Comparison'}
-            </button>
+              <input {...getComparatorInputProps()} />
+              <FaCloudUploadAlt className="upload-icon" />
+              <p>Drag & drop comparator PDF here, or click to select</p>
+              <span className="file-type">PDF files only</span>
+            </div>
+            {files.comparator && (
+              <div className="file-info">
+                <FaFilePdf className="file-icon" />
+                <span>{files.comparator.name}</span>
+                <button 
+                  className="btn btn-sm btn-danger"
+                  onClick={() => removeFile('comparator')}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="upload-card">
+            <h3>Our RSI</h3>
+            <div 
+              {...getOurRootProps()} 
+              className={`dropzone ${isOurDragActive ? 'dragover' : ''}`}
+            >
+              <input {...getOurInputProps()} />
+              <FaCloudUploadAlt className="upload-icon" />
+              <p>Drag & drop our RSI PDF here, or click to select</p>
+              <span className="file-type">PDF files only</span>
+            </div>
+            {files.our && (
+              <div className="file-info">
+                <FaFilePdf className="file-icon" />
+                <span>{files.our.name}</span>
+                <button 
+                  className="btn btn-sm btn-danger"
+                  onClick={() => removeFile('our')}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="col-4">
-          <div className="settings-panel">
-            <div className="settings-header">
-              <FaCog className="settings-icon" />
-              <h3>Settings</h3>
-            </div>
-            
-            <div className="setting-group">
-              <label className="form-label">Similarity Threshold</label>
-              <div className="slider-container">
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={settings.similarityThreshold}
-                  onChange={(e) => setSettings(prev => ({ 
-                    ...prev, 
-                    similarityThreshold: parseFloat(e.target.value) 
-                  }))}
-                  className="slider"
-                />
-                <span className="slider-value">{settings.similarityThreshold}</span>
-              </div>
-              <small className="text-muted">
-                Higher values require more exact matches
-              </small>
-            </div>
-
-            <div className="setting-group">
-              <label className="form-label">Report Formats</label>
-              <div className="checkbox-group">
-                <label className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={settings.generateHtml}
-                    onChange={(e) => setSettings(prev => ({ 
-                      ...prev, 
-                      generateHtml: e.target.checked 
-                    }))}
-                  />
-                  <span>HTML Report</span>
-                </label>
-                <label className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={settings.generateExcel}
-                    onChange={(e) => setSettings(prev => ({ 
-                      ...prev, 
-                      generateExcel: e.target.checked 
-                    }))}
-                  />
-                  <span>Excel Report</span>
-                </label>
-                <label className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={settings.generatePdf}
-                    onChange={(e) => setSettings(prev => ({ 
-                      ...prev, 
-                      generatePdf: e.target.checked 
-                    }))}
-                  />
-                  <span>PDF Report</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
+        <button
+          className="btn btn-primary btn-lg compare-btn"
+          onClick={handleSubmit}
+          disabled={!files.comparator || !files.our || uploading}
+        >
+          <FaPlay />
+          {uploading ? 'Comparing...' : 'Start Comparison'}
+        </button>
       </div>
     </div>
   );

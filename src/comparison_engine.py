@@ -53,15 +53,16 @@ class ComparisonEngine:
         results = {}
         
         # Define the specific order for SmPC sections as requested
+        # Each section includes content from its start until the next section
         section_order = [
-            'therapeutic_indications',      # 4.1 Therapeutic indications
-            'contraindications',            # 4.3 Contraindications
-            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
-            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
-            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
-            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
-            'undesirable_effects',          # 4.8 Undesirable effects
-            'overdose'                      # 4.9 Overdose
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
         ]
         
         # Handle edge cases quickly
@@ -183,14 +184,14 @@ class ComparisonEngine:
     def _ensure_section_order(self, results: Dict[str, ComparisonResult]) -> Dict[str, ComparisonResult]:
         """Ensure results are returned in the specified section order"""
         section_order = [
-            'therapeutic_indications',      # 4.1 Therapeutic indications
-            'contraindications',            # 4.3 Contraindications
-            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
-            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
-            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
-            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
-            'undesirable_effects',          # 4.8 Undesirable effects
-            'overdose'                      # 4.9 Overdose
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
         ]
         
         ordered_results = {}
@@ -215,8 +216,7 @@ class ComparisonEngine:
         
         # SmPC section equivalents mapping
         section_equivalents = {
-            'therapeutic_indications': ['indications', 'therapeutic_indications'],
-            'posology_administration': ['posology', 'posology_administration', 'dosage'],
+            'therapeutic_indications': ['indications', 'therapeutic_indications', 'posology', 'posology_administration', 'dosage'],
             'contraindications': ['contraindications'],
             'special_warnings_precautions': ['warnings_precautions', 'special_warnings_precautions', 'warnings', 'precautions'],
             'interactions_medicinal_products': ['interactions', 'interactions_medicinal_products', 'drug_interactions'],
@@ -318,16 +318,14 @@ class ComparisonEngine:
     def _is_critical_section(self, section_name: str) -> bool:
         """Check if a section is critical for SmPC comparison (based on the specified order)"""
         critical_sections = {
-            'therapeutic_indications',      # 4.1 Therapeutic indications
-            'contraindications',            # 4.3 Contraindications
-            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
-            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
-            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
-            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
-            'undesirable_effects',          # 4.8 Undesirable effects
-            'overdose',                     # 4.9 Overdose
-            # Also include posology for backward compatibility
-            'posology_administration'
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
         }
         return section_name in critical_sections
     
@@ -339,8 +337,7 @@ class ComparisonEngine:
         
         # Check for related section types
         related_groups = [
-            {'therapeutic_indications', 'indications'},
-            {'posology_administration', 'posology', 'dosage'},
+            {'therapeutic_indications', 'indications', 'posology', 'posology_administration', 'dosage'},
             {'special_warnings_precautions', 'warnings_precautions', 'warnings', 'precautions'},
             {'interactions_medicinal_products', 'interactions', 'drug_interactions'},
             {'fertility_pregnancy_lactation', 'fertility_pregnancy', 'pregnancy'},

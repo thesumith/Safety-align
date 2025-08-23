@@ -68,16 +68,8 @@ class SectionParser:
                 'keywords': ['therapeutic indications', 'indications', 'treatment of', 'indicated for', 'what is used for', 'used to treat'],
                 'min_chars': 50
             },
-            'posology_administration': {
-                'patterns': [
-                    r'(?i)^\s*\d*\.?\d*\.?\s*posology.*method.*administration',
-                    r'(?i)^\s*4\.2\.?\s*posology.*administration',
-                    r'(?i)^\s*\d*\.?\s*dosage.*administration',
-                    r'(?i)^\s*posology.*administration'
-                ],
-                'keywords': ['posology and method of administration', 'dosage', 'recommended dose', 'administration', 'how to take', 'dose'],
-                'min_chars': 50
-            },
+            # Note: posology_administration (4.2) is now included within therapeutic_indications (4.1) content
+            # as per the new comparison logic where 4.1 includes content until 4.2
             'contraindications': {
                 'patterns': [
                     r'(?i)^\s*4\.3\.?\s*contraindications?',
@@ -235,16 +227,17 @@ class SectionParser:
         """Detect the 8 core SmPC sections with proper boundary handling"""
         sections = {}
         
-        # Define the 8 core sections with their exact section numbers
+        # Define the core sections with their exact section numbers and boundaries
+        # Each section includes content from its start until the next section in the sequence
         core_sections = {
-            '4.1': 'therapeutic_indications',
-            '4.3': 'contraindications',
-            '4.4': 'special_warnings_precautions',
-            '4.5': 'interactions_medicinal_products',
-            '4.6': 'fertility_pregnancy_lactation',
-            '4.7': 'effects_ability_drive_machines',
-            '4.8': 'undesirable_effects',
-            '4.9': 'overdose'
+            '4.1': 'therapeutic_indications',      # 4.1 includes content until 4.3 (includes 4.2)
+            '4.3': 'contraindications',            # 4.3 includes content until 4.5 (includes 4.4)
+            '4.4': 'special_warnings_precautions', # 4.4 includes content until 4.6 (includes 4.5)
+            '4.5': 'interactions_medicinal_products', # 4.5 includes content until 4.7 (includes 4.6)
+            '4.6': 'fertility_pregnancy_lactation', # 4.6 includes content until 4.8 (includes 4.7)
+            '4.7': 'effects_ability_drive_machines', # 4.7 includes content until 4.9 (includes 4.8)
+            '4.8': 'undesirable_effects',          # 4.8 includes content until 5.0 (includes 4.9)
+            '4.9': 'overdose'                      # 4.9 includes content until document end
         }
         
         # Find all potential section headers by looking for exact section numbers
@@ -279,18 +272,15 @@ class SectionParser:
         # Sort by line number to maintain document order
         unique_candidates.sort(key=lambda x: x[0])
         
-        # Extract content with proper boundary handling
+        # Extract content with proper boundary handling - each section includes content until the next section
         for i, (start_line, section_name, header, section_number) in enumerate(unique_candidates):
-            # Find the end of this section
-            if i + 1 < len(unique_candidates):
-                # Next section starts where this one ends
-                end_line = unique_candidates[i + 1][0]
-            else:
-                # This is the last section, find a reasonable end point
-                end_line = self._find_section_end_smart(lines, start_line, section_name)
+            # Find the end of this section based on the next section number
+            end_line = self._find_section_end_by_next_section(lines, start_line, section_number)
             
-            # Extract content (excluding the header line)
-            content_lines = lines[start_line + 1:end_line]
+            # Extract content (including the header line for context)
+            # Note: end_line is the line where the next section starts, so we include up to that line
+            # For section 4.1, we want to include content until 4.2 starts
+            content_lines = lines[start_line:end_line]
             content = '\n'.join(content_lines).strip()
             
             # Check minimum content requirements
@@ -299,15 +289,63 @@ class SectionParser:
                 sections[section_name] = Section(
                     name=section_name,
                     content=content,
-                    start_line=start_line + 1,
+                    start_line=start_line,
                     end_line=end_line,
                     confidence=0.98  # Very high confidence for exact number match
                 )
                 
-                # Log the successful detection with section number
-                logger.info(f"Detected section {section_number} ({section_name}) at lines {start_line+1}-{end_line}")
+                # Log the successful detection with section number and content range
+                logger.info(f"Detected section {section_number} ({section_name}) at lines {start_line}-{end_line} with {len(content)} characters")
         
         return sections
+    
+    def _find_section_end_by_next_section(self, lines: List[str], start_line: int, current_section_number: str) -> int:
+        """Find section end by looking for the next section number in sequence"""
+        
+        # Define the section boundaries based on your requirements:
+        # 4.1 includes content until 4.3 (includes 4.2)
+        # 4.3 includes content until 4.5 (includes 4.4)
+        # 4.4 includes content until 4.6 (includes 4.5)
+        # 4.5 includes content until 4.7 (includes 4.6)
+        # 4.6 includes content until 4.8 (includes 4.7)
+        # 4.7 includes content until 4.9 (includes 4.8)
+        # 4.8 includes content until 5.0 (includes 4.9)
+        # 4.9 includes content until document end or next major section
+        
+        section_boundaries = {
+            '4.1': '4.3',  # 4.1 includes content until 4.3 (includes 4.2)
+            '4.3': '4.5',  # 4.3 includes content until 4.5 (includes 4.4)
+            '4.4': '4.6',  # 4.4 includes content until 4.6 (includes 4.5)
+            '4.5': '4.7',  # 4.5 includes content until 4.7 (includes 4.6)
+            '4.6': '4.8',  # 4.6 includes content until 4.8 (includes 4.7)
+            '4.7': '4.9',  # 4.7 includes content until 4.9 (includes 4.8)
+            '4.8': '5.0',  # 4.8 includes content until 5.0 (includes 4.9)
+            '4.9': '5.1'   # 4.9 includes content until section 5 or document end
+        }
+        
+        next_section_number = section_boundaries.get(current_section_number)
+        
+        if not next_section_number:
+            # Fallback to document end
+            return len(lines)
+        
+        # Look for the next section number (more flexible pattern matching)
+        for i in range(start_line + 1, len(lines)):
+            line = lines[i].strip()
+            if not line:
+                continue
+            
+            # Check if this line starts with the next section number (more flexible)
+            # This will match patterns like "4.2", "4.2.", "4.2 Posology", etc.
+            if re.match(rf'^\s*{re.escape(next_section_number)}(?:\.|\s|$)', line):
+                return i
+            
+            # Also check for major section breaks (like "5. PHARMACOLOGICAL PROPERTIES")
+            if current_section_number == '4.9' and re.match(r'^\s*5\.\s+[A-Z][A-Z\s]+$', line):
+                return i
+        
+        # If next section not found, return document end
+        return len(lines)
     
     def _find_section_end_smart(self, lines: List[str], start_line: int, current_section: str) -> int:
         """Smart section end detection that looks for the next core section or document end"""
@@ -443,15 +481,16 @@ class SectionParser:
         text_lower = '\n'.join(lines).lower()
         
         # Priority order for SmPC sections (the 8 target sections: 4.1, 4.3-4.9)
+        # Note: posology_administration (4.2) is now included within therapeutic_indications (4.1)
         priority_sections = [
-            'therapeutic_indications',      # 4.1 Therapeutic indications
-            'contraindications',            # 4.3 Contraindications
-            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
-            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
-            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
-            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
-            'undesirable_effects',          # 4.8 Undesirable effects
-            'overdose'                      # 4.9 Overdose
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
         ]
         
         # First, try to find priority sections (the 8 target sections: 4.1, 4.3-4.9)
@@ -506,7 +545,7 @@ class SectionParser:
             if section_name in existing_sections or section_name in sections:
                 continue
             
-            # Skip posology_administration as it's not in our target 8 sections
+            # Skip posology_administration as it's now included in therapeutic_indications
             if section_name == 'posology_administration':
                 continue
             
@@ -556,15 +595,16 @@ class SectionParser:
         text_lower = text.lower()
         
         # Target missing critical sections (the 8 sections: 4.1, 4.3-4.9)
+        # Note: posology_administration (4.2) is now included within therapeutic_indications (4.1)
         critical_sections = [
-            'therapeutic_indications',      # 4.1 Therapeutic indications
-            'contraindications',            # 4.3 Contraindications
-            'special_warnings_precautions', # 4.4 Special warnings and precautions for use
-            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products
-            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation
-            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines
-            'undesirable_effects',          # 4.8 Undesirable effects
-            'overdose'                      # 4.9 Overdose
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
         ]
         
         missing_critical = [s for s in critical_sections if s not in existing_sections]
@@ -663,14 +703,14 @@ class SectionParser:
         text_lower = text.lower()
         lines = text.split('\n')
         
-        # Target the 9 core SmPC sections with very loose matching
+        # Target the 8 core SmPC sections with very loose matching
+        # Note: posology_administration (4.2) is now included within therapeutic_indications (4.1)
         target_sections = {
             'contraindications': ['contraindic', 'hypersensitivity', 'allerg', 'should not', 'do not use'],
             'interactions_medicinal_products': ['interaction', 'concomitant', 'drug', 'medicinal', 'co-administration'],
             'effects_ability_drive_machines': ['drive', 'driving', 'machine', 'ability', 'operate'],
             'overdose': ['overdos', 'overdo', 'too much', 'excess', 'antidote'],
-            'therapeutic_indications': ['indicat', 'treatment', 'used for', 'therapy'],
-            'posology_administration': ['dosage', 'dose', 'posology', 'administration', 'how to'],
+            'therapeutic_indications': ['indicat', 'treatment', 'used for', 'therapy', 'dosage', 'dose', 'posology', 'administration', 'how to'],
             'special_warnings_precautions': ['warning', 'precaution', 'caution', 'careful'],
             'fertility_pregnancy_lactation': ['pregnan', 'lactation', 'fertility', 'breast', 'women'],
             'undesirable_effects': ['adverse', 'undesirable', 'side effect', 'reaction']
