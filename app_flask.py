@@ -3,7 +3,7 @@ Fast Flask Web Application for RSI Comparison Tool
 Provides a split-screen interface for comparing RSI documents with highlighted missing information
 """
 
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, session
 import os
 import tempfile
 import uuid
@@ -16,6 +16,7 @@ from src.main import RSIComparisonTool
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['SECRET_KEY'] = 'your-secret-key-here'  # Required for sessions
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -46,12 +47,34 @@ def compare_documents():
         output_dir = os.path.join('output', str(uuid.uuid4()))
         os.makedirs(output_dir, exist_ok=True)
         
-        # Save uploaded files
-        comparator_path = os.path.join(app.config['UPLOAD_FOLDER'], f"comparator_{uuid.uuid4()}.pdf")
-        our_path = os.path.join(app.config['UPLOAD_FOLDER'], f"our_{uuid.uuid4()}.pdf")
+        # Save uploaded files with unique IDs
+        comparator_id = str(uuid.uuid4())
+        our_id = str(uuid.uuid4())
+        
+        comparator_path = os.path.join(app.config['UPLOAD_FOLDER'], f"comparator_{comparator_id}.pdf")
+        our_path = os.path.join(app.config['UPLOAD_FOLDER'], f"our_{our_id}.pdf")
         
         comparator_file.save(comparator_path)
         our_file.save(our_path)
+        
+        # Also save copies to output directory for PDF viewing
+        comparator_output_path = os.path.join(output_dir, 'comparator_original.pdf')
+        our_output_path = os.path.join(output_dir, 'our_original.pdf')
+        
+        import shutil
+        shutil.copy2(comparator_path, comparator_output_path)
+        shutil.copy2(our_path, our_output_path)
+        
+        # Store file IDs in session for later access
+        if 'uploaded_files' not in session:
+            session['uploaded_files'] = {}
+        
+        session['uploaded_files'][output_dir] = {
+            'comparator_id': comparator_id,
+            'our_id': our_id,
+            'comparator_path': comparator_path,
+            'our_path': our_path
+        }
         
         # Run comparison
         tool = RSIComparisonTool(similarity_threshold)
@@ -71,18 +94,18 @@ def compare_documents():
             print(f"DEBUG: Our section '{section_name}': {len(section_data.get('content', ''))} chars")
             print(f"DEBUG: First 100 chars: {section_data.get('content', '')[:100]}...")
         
-        # Clean up uploaded files
-        os.remove(comparator_path)
-        os.remove(our_path)
+        # Note: Files are kept for PDF viewing, cleanup happens later
         
-        # Prepare response data
+        # Prepare response data with PDF URLs
         response_data = {
             'success': True,
             'output_dir': output_dir,
             'summary': results['summary'],
             'detailed_results': results['comparison_results'],
             'comparator_sections': results.get('comparator_sections', {}),
-            'our_sections': results.get('our_sections', {})
+            'our_sections': results.get('our_sections', {}),
+            'comparator_pdf_url': f'/api/pdf/comparator?output_dir={output_dir}',
+            'our_pdf_url': f'/api/pdf/our?output_dir={output_dir}'
         }
         
         return jsonify(response_data)
@@ -123,6 +146,137 @@ def download_report(report_type):
                            download_name=f'rsi_comparison_reports_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
         
         return jsonify({'success': False, 'error': 'Report type not supported'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/pdf/<pdf_type>')
+def serve_pdf(pdf_type):
+    """Serve original PDF files for viewing"""
+    try:
+        output_dir = request.args.get('output_dir')
+        if not output_dir:
+            return jsonify({'success': False, 'error': 'Output directory not specified'})
+        
+        print(f"DEBUG: Serving PDF {pdf_type} for output_dir: {output_dir}")
+        
+        # Get file information from session
+        uploaded_files = session.get('uploaded_files', {})
+        file_info = uploaded_files.get(output_dir)
+        
+        print(f"DEBUG: Session uploaded_files keys: {list(uploaded_files.keys())}")
+        print(f"DEBUG: File info for {output_dir}: {file_info}")
+        
+        if not file_info:
+            print(f"DEBUG: No file info found, trying fallback to output directory")
+            # Fallback to output directory files
+            if pdf_type == 'comparator':
+                pdf_path = os.path.join(output_dir, 'comparator_original.pdf')
+                print(f"DEBUG: Trying fallback path: {pdf_path}")
+                if os.path.exists(pdf_path):
+                    print(f"DEBUG: Fallback file exists, serving: {pdf_path}")
+                    return send_file(pdf_path, mimetype='application/pdf')
+            
+            elif pdf_type == 'our':
+                pdf_path = os.path.join(output_dir, 'our_original.pdf')
+                print(f"DEBUG: Trying fallback path: {pdf_path}")
+                if os.path.exists(pdf_path):
+                    print(f"DEBUG: Fallback file exists, serving: {pdf_path}")
+                    return send_file(pdf_path, mimetype='application/pdf')
+            
+            print(f"DEBUG: No fallback files found")
+            return jsonify({'success': False, 'error': 'PDF file not found'})
+        
+        # Serve files from upload directory using stored paths
+        if pdf_type == 'comparator':
+            pdf_path = file_info['comparator_path']
+            print(f"DEBUG: Serving comparator from: {pdf_path}")
+            if os.path.exists(pdf_path):
+                print(f"DEBUG: File exists, serving: {pdf_path}")
+                return send_file(pdf_path, mimetype='application/pdf')
+            else:
+                print(f"DEBUG: File does not exist: {pdf_path}")
+        
+        elif pdf_type == 'our':
+            pdf_path = file_info['our_path']
+            print(f"DEBUG: Serving our PDF from: {pdf_path}")
+            if os.path.exists(pdf_path):
+                print(f"DEBUG: File exists, serving: {pdf_path}")
+                return send_file(pdf_path, mimetype='application/pdf')
+            else:
+                print(f"DEBUG: File does not exist: {pdf_path}")
+        
+        print(f"DEBUG: No matching PDF type found: {pdf_type}")
+        return jsonify({'success': False, 'error': 'PDF file not found'})
+        
+    except Exception as e:
+        print(f"DEBUG: Exception in serve_pdf: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/cleanup', methods=['POST'])
+def cleanup_files():
+    """Clean up uploaded files for a specific comparison"""
+    try:
+        output_dir = request.json.get('output_dir')
+        if not output_dir:
+            return jsonify({'success': False, 'error': 'Output directory not specified'})
+        
+        # Get file information from session
+        uploaded_files = session.get('uploaded_files', {})
+        file_info = uploaded_files.get(output_dir)
+        
+        if file_info:
+            # Remove files from upload directory
+            try:
+                if os.path.exists(file_info['comparator_path']):
+                    os.remove(file_info['comparator_path'])
+                if os.path.exists(file_info['our_path']):
+                    os.remove(file_info['our_path'])
+            except Exception as e:
+                print(f"Warning: Could not remove files: {e}")
+            
+            # Remove from session
+            del uploaded_files[output_dir]
+            session['uploaded_files'] = uploaded_files
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/test-pdf-access')
+def test_pdf_access():
+    """Test endpoint to verify PDF access"""
+    try:
+        output_dir = request.args.get('output_dir')
+        if not output_dir:
+            return jsonify({'success': False, 'error': 'Output directory not specified'})
+        
+        # Get file information from session
+        uploaded_files = session.get('uploaded_files', {})
+        file_info = uploaded_files.get(output_dir)
+        
+        result = {
+            'output_dir': output_dir,
+            'session_keys': list(uploaded_files.keys()),
+            'file_info': file_info,
+            'output_dir_exists': os.path.exists(output_dir),
+            'fallback_files': {}
+        }
+        
+        # Check fallback files
+        if output_dir and os.path.exists(output_dir):
+            comparator_fallback = os.path.join(output_dir, 'comparator_original.pdf')
+            our_fallback = os.path.join(output_dir, 'our_original.pdf')
+            
+            result['fallback_files'] = {
+                'comparator_exists': os.path.exists(comparator_fallback),
+                'our_exists': os.path.exists(our_fallback),
+                'comparator_path': comparator_fallback,
+                'our_path': our_fallback
+            }
+        
+        return jsonify(result)
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})

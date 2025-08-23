@@ -260,3 +260,14 @@
 .panel-content::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* PDF View Styles */
+.comparison-container.pdf {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.comparison-container.pdf .pdf-viewer {
+  margin: 0;
+}

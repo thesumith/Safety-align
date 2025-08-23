@@ -263,3 +263,14 @@
 .panel-content::-webkit-scrollbar-thumb:hover {
   background: #bdc1c6;
 }
+
+/* PDF View Styles */
+.comparison-container.pdf {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.comparison-container.pdf .pdf-viewer {
+  margin: 0;
+}

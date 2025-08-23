@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import { FaCloudUploadAlt, FaFilePdf, FaCog, FaPlay } from 'react-icons/fa';
@@ -17,18 +17,40 @@ const FileUpload = ({
     our: null
   });
   const [uploading, setUploading] = useState(false);
+  const [pdfUrls, setPdfUrls] = useState({
+    comparator: null,
+    our: null
+  });
 
   const onDropComparator = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
-      setFiles(prev => ({ ...prev, comparator: acceptedFiles[0] }));
+      // Revoke previous URL if it exists
+      if (pdfUrls.comparator) {
+        URL.revokeObjectURL(pdfUrls.comparator);
+      }
+      
+      const newFile = acceptedFiles[0];
+      const newUrl = URL.createObjectURL(newFile);
+      
+      setFiles(prev => ({ ...prev, comparator: newFile }));
+      setPdfUrls(prev => ({ ...prev, comparator: newUrl }));
     }
-  }, []);
+  }, [pdfUrls.comparator]);
 
   const onDropOur = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
-      setFiles(prev => ({ ...prev, our: acceptedFiles[0] }));
+      // Revoke previous URL if it exists
+      if (pdfUrls.our) {
+        URL.revokeObjectURL(pdfUrls.our);
+      }
+      
+      const newFile = acceptedFiles[0];
+      const newUrl = URL.createObjectURL(newFile);
+      
+      setFiles(prev => ({ ...prev, our: newFile }));
+      setPdfUrls(prev => ({ ...prev, our: newUrl }));
     }
-  }, []);
+  }, [pdfUrls.our]);
 
   const { getRootProps: getComparatorRootProps, getInputProps: getComparatorInputProps, isDragActive: isComparatorDragActive } = useDropzone({
     onDrop: onDropComparator,
@@ -41,6 +63,18 @@ const FileUpload = ({
     accept: { 'application/pdf': ['.pdf'] },
     multiple: false
   });
+
+  // Cleanup URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (pdfUrls.comparator) {
+        URL.revokeObjectURL(pdfUrls.comparator);
+      }
+      if (pdfUrls.our) {
+        URL.revokeObjectURL(pdfUrls.our);
+      }
+    };
+  }, [pdfUrls.comparator, pdfUrls.our]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,6 +100,7 @@ const FileUpload = ({
       });
 
       if (response.data.success) {
+        // Use backend PDF URLs from response
         onComparisonComplete(response.data, response.data.output_dir);
       } else {
         onComparisonError(response.data.error || 'Comparison failed');
@@ -79,7 +114,13 @@ const FileUpload = ({
   };
 
   const removeFile = (type) => {
+    // Revoke URL if it exists
+    if (pdfUrls[type]) {
+      URL.revokeObjectURL(pdfUrls[type]);
+    }
+    
     setFiles(prev => ({ ...prev, [type]: null }));
+    setPdfUrls(prev => ({ ...prev, [type]: null }));
   };
 
   return (
@@ -111,12 +152,26 @@ const FileUpload = ({
                   <div className="file-info">
                     <FaFilePdf className="file-icon" />
                     <span>{files.comparator.name}</span>
-                    <button 
-                      className="btn btn-sm btn-danger"
-                      onClick={() => removeFile('comparator')}
-                    >
-                      Remove
-                    </button>
+                    <div className="file-actions">
+                      <button 
+                        className="btn btn-sm btn-outline"
+                        onClick={() => {
+                          if (pdfUrls.comparator) {
+                            window.open(pdfUrls.comparator, '_blank');
+                          }
+                        }}
+                        title="Preview PDF"
+                        disabled={!pdfUrls.comparator}
+                      >
+                        Preview
+                      </button>
+                      <button 
+                        className="btn btn-sm btn-danger"
+                        onClick={() => removeFile('comparator')}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -136,12 +191,26 @@ const FileUpload = ({
                   <div className="file-info">
                     <FaFilePdf className="file-icon" />
                     <span>{files.our.name}</span>
-                    <button 
-                      className="btn btn-sm btn-danger"
-                      onClick={() => removeFile('our')}
-                    >
-                      Remove
-                    </button>
+                    <div className="file-actions">
+                      <button 
+                        className="btn btn-sm btn-outline"
+                        onClick={() => {
+                          if (pdfUrls.our) {
+                            window.open(pdfUrls.our, '_blank');
+                          }
+                        }}
+                        title="Preview PDF"
+                        disabled={!pdfUrls.our}
+                      >
+                        Preview
+                      </button>
+                      <button 
+                        className="btn btn-sm btn-danger"
+                        onClick={() => removeFile('our')}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
