@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FaEye, FaEyeSlash, FaExpand, FaCompress, FaFileAlt, FaExclamationTriangle, FaCheckCircle } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaExpand, FaCompress, FaFileAlt, FaExclamationTriangle, FaCheckCircle, FaFilePdf } from 'react-icons/fa';
+import PDFViewer from './PDFViewer';
 import './ComparisonView.css';
 
 const ComparisonView = ({ results, outputDir }) => {
   const [expandedSections, setExpandedSections] = useState(new Set());
   const [selectedSection, setSelectedSection] = useState(null);
-  const [viewMode, setViewMode] = useState('split'); // 'split' or 'full'
+  const [viewMode, setViewMode] = useState('split'); // 'split', 'full', or 'pdf'
 
   const toggleSection = (sectionName) => {
     const newExpanded = new Set(expandedSections);
@@ -94,11 +95,17 @@ const ComparisonView = ({ results, outputDir }) => {
           >
             Full View
           </button>
+          <button 
+            className={`btn btn-sm ${viewMode === 'pdf' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setViewMode('pdf')}
+          >
+            <FaFilePdf /> PDF View
+          </button>
         </div>
       </div>
 
       <div className={`comparison-container ${viewMode}`}>
-        {viewMode === 'split' ? (
+        {viewMode === 'split' && (
           <div className="split-view">
             <div className="comparison-panel">
               <div className="panel-header">
@@ -180,7 +187,9 @@ const ComparisonView = ({ results, outputDir }) => {
               </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {viewMode === 'full' && (
           <div className="full-view">
             <div className="sections-list">
               {sortedSections.map(([sectionName, result]) => (
@@ -249,6 +258,14 @@ const ComparisonView = ({ results, outputDir }) => {
               ))}
             </div>
           </div>
+        )}
+
+        {viewMode === 'pdf' && (
+          <PDFViewer 
+            comparatorPdfUrl={results.comparator_pdf_url || `/api/pdf/comparator?output_dir=${outputDir}`}
+            ourPdfUrl={results.our_pdf_url || `/api/pdf/our?output_dir=${outputDir}`}
+            outputDir={outputDir}
+          />
         )}
       </div>
     </motion.div>

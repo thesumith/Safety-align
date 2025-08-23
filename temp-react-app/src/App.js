@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import ComparisonView from './components/ComparisonView';
@@ -13,6 +14,8 @@ function App() {
     error: null,
     outputDir: null
   });
+
+  const [uploadedFiles, setUploadedFiles] = useState(null);
 
   const [settings, setSettings] = useState({
     similarityThreshold: 0.7,
@@ -46,6 +49,10 @@ function App() {
     }));
   };
 
+  const handleFilesUploaded = (uploadData) => {
+    setUploadedFiles(uploadData);
+  };
+
   const resetComparison = () => {
     setComparisonState({
       isComparing: false,
@@ -53,13 +60,19 @@ function App() {
       error: null,
       outputDir: null
     });
+    setUploadedFiles(null);
   };
 
   return (
     <div className="App">
       <Header />
       
-      <div className="main-container animate-fade-in">
+      <motion.div 
+        className="main-container"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         {comparisonState.isComparing && (
           <LoadingSpinner />
         )}
@@ -71,11 +84,34 @@ function App() {
             onStartComparison={handleStartComparison}
             onComparisonComplete={handleComparisonComplete}
             onComparisonError={handleComparisonError}
+            onFilesUploaded={handleFilesUploaded}
           />
         )}
 
+        {uploadedFiles && !comparisonState.results && !comparisonState.isComparing && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <ComparisonView 
+              results={{
+                comparator_pdf_url: uploadedFiles.comparator_pdf_url,
+                our_pdf_url: uploadedFiles.our_pdf_url
+              }}
+              outputDir={null}
+              showOnlyPdfView={true}
+            />
+          </motion.div>
+        )}
+
         {comparisonState.error && (
-          <div className="error-container animate-fade-in">
+          <motion.div 
+            className="error-container"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
             <div className="error-message">
               <h3>Error</h3>
               <p>{comparisonState.error}</p>
@@ -86,11 +122,15 @@ function App() {
                 Try Again
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {comparisonState.results && !comparisonState.isComparing && (
-          <div className="animate-fade-in">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
             <ComparisonView 
               results={comparisonState.results}
               outputDir={comparisonState.outputDir}
@@ -100,9 +140,9 @@ function App() {
               outputDir={comparisonState.outputDir}
               onReset={resetComparison}
             />
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

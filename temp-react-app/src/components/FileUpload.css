@@ -110,6 +110,13 @@
   background: white;
   border-radius: 8px;
   border: 1px solid #e8eaed;
+  flex-wrap: wrap;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .file-icon {
