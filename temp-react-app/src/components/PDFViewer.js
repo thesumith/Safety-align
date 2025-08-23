@@ -7,6 +7,17 @@ import './PDFViewer.css';
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
+// Memoized Page component for better performance
+const MemoizedPage = React.memo(({ pageNumber, scale, loading }) => (
+  <Page
+    pageNumber={pageNumber}
+    scale={scale}
+    loading={loading}
+    renderTextLayer={false}
+    renderAnnotationLayer={false}
+  />
+));
+
 const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) => {
   console.log('PDFViewer props:', { comparatorPdfUrl, ourPdfUrl, outputDir });
   
@@ -14,13 +25,12 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
   const [zoomLevel, setZoomLevel] = useState({ comparator: 1, our: 1 });
   const [showControls, setShowControls] = useState(true);
   const [syncZoom, setSyncZoom] = useState(true);
-  const [syncScroll, setSyncScroll] = useState(true);
+  const [syncScroll, setSyncScroll] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [numPages, setNumPages] = useState({ comparator: 0, our: 0 });
   const [showSectionNavigator, setShowSectionNavigator] = useState(false);
   const [sectionPositions, setSectionPositions] = useState({});
   const [isScrolling, setIsScrolling] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState({ comparator: true, our: true });
 
   // Refs for PDF containers
   const comparatorRef = useRef(null);
@@ -49,68 +59,76 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
     setSearchTerm('');
     setNumPages({ comparator: 0, our: 0 });
     setSectionPositions({});
-    setPdfLoading({ comparator: true, our: true });
   }, [comparatorPdfUrl, ourPdfUrl]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (window.scrollTimeout) {
+        clearTimeout(window.scrollTimeout);
+      }
+      if (window.zoomTimeout) {
+        clearTimeout(window.zoomTimeout);
+      }
+    };
+  }, []);
 
   // Function to handle synchronized scrolling
   const handleScroll = useCallback((type, event) => {
     if (!syncScroll || isScrolling) return;
     
-    console.log(`Scroll event for ${type}:`, {
-      scrollTop: event.target.scrollTop,
-      scrollHeight: event.target.scrollHeight,
-      clientHeight: event.target.clientHeight,
-      syncScroll,
-      isScrolling
-    });
-    
-    setIsScrolling(true);
-    
-    const sourceElement = event.target;
-    const sourceScrollTop = sourceElement.scrollTop;
-    const sourceScrollHeight = sourceElement.scrollHeight;
-    const sourceClientHeight = sourceElement.clientHeight;
-    
-    // Calculate scroll percentage
-    const scrollPercentage = sourceScrollTop / (sourceScrollHeight - sourceClientHeight);
-    
-    // Apply to the other PDF viewer
-    const targetType = type === 'comparator' ? 'our' : 'comparator';
-    const targetRef = targetType === 'comparator' ? comparatorRef : ourRef;
-    
-    if (targetRef.current) {
-      const targetElement = targetRef.current;
-      const targetScrollHeight = targetElement.scrollHeight;
-      const targetClientHeight = targetElement.clientHeight;
-      const targetScrollTop = scrollPercentage * (targetScrollHeight - targetClientHeight);
+    // Add a small delay to prevent rapid firing
+    clearTimeout(window.scrollTimeout);
+    window.scrollTimeout = setTimeout(() => {
+      setIsScrolling(true);
       
-      console.log(`Syncing scroll to ${targetType}:`, {
-        targetScrollTop,
-        targetScrollHeight,
-        targetClientHeight,
-        scrollPercentage
-      });
+      const sourceElement = event.target;
+      const sourceScrollTop = sourceElement.scrollTop;
+      const sourceScrollHeight = sourceElement.scrollHeight;
+      const sourceClientHeight = sourceElement.clientHeight;
       
-      targetElement.scrollTop = targetScrollTop;
-    }
-    
-    // Reset scrolling flag after a short delay
-    setTimeout(() => {
-      setIsScrolling(false);
-    }, 100);
+      // Calculate scroll percentage
+      const scrollPercentage = sourceScrollTop / (sourceScrollHeight - sourceClientHeight);
+      
+      // Apply to the other PDF viewer
+      const targetType = type === 'comparator' ? 'our' : 'comparator';
+      const targetRef = targetType === 'comparator' ? comparatorRef : ourRef;
+      
+      if (targetRef.current) {
+        const targetElement = targetRef.current;
+        const targetScrollHeight = targetElement.scrollHeight;
+        const targetClientHeight = targetElement.clientHeight;
+        const targetScrollTop = scrollPercentage * (targetScrollHeight - targetClientHeight);
+        
+        // Only update if the difference is significant to prevent micro-adjustments
+        if (Math.abs(targetElement.scrollTop - targetScrollTop) > 5) {
+          targetElement.scrollTop = targetScrollTop;
+        }
+      }
+      
+      // Reset scrolling flag after a longer delay
+      setTimeout(() => {
+        setIsScrolling(false);
+      }, 150);
+    }, 50);
   }, [syncScroll, isScrolling]);
 
   // Function to handle synchronized zoom
   const handleZoomChange = useCallback((type, newZoom) => {
     const clampedZoom = Math.max(0.5, Math.min(3, newZoom));
-    setZoomLevel(prev => ({ ...prev, [type]: clampedZoom }));
     
-    if (syncZoom) {
-      setZoomLevel(prev => ({ 
-        comparator: clampedZoom, 
-        our: clampedZoom 
-      }));
-    }
+    // Debounce zoom changes to prevent rapid re-renders
+    clearTimeout(window.zoomTimeout);
+    window.zoomTimeout = setTimeout(() => {
+      setZoomLevel(prev => ({ ...prev, [type]: clampedZoom }));
+      
+      if (syncZoom) {
+        setZoomLevel(prev => ({ 
+          comparator: clampedZoom, 
+          our: clampedZoom 
+        }));
+      }
+    }, 100);
   }, [syncZoom]);
 
   // Function to search within PDFs
@@ -156,13 +174,11 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
     console.log(`PDF loaded for ${type}: ${numPages} pages`);
     setNumPages(prev => ({ ...prev, [type]: numPages }));
     setPdfError(prev => ({ ...prev, [type]: null }));
-    setPdfLoading(prev => ({ ...prev, [type]: false }));
   };
 
   const onDocumentLoadError = (type, error) => {
     console.error(`PDF Error for ${type}:`, error);
     setPdfError(prev => ({ ...prev, [type]: error }));
-    setPdfLoading(prev => ({ ...prev, [type]: false }));
   };
 
   const resetZoom = () => {
@@ -320,41 +336,47 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
                   </div>
                 }
               >
-                {/* Simplified rendering for testing */}
-                <Page
-                  pageNumber={1}
-                  scale={zoomLevel[type]}
-                  loading={
-                    <div className="page-loading">
-                      <div className="loading-spinner"></div>
-                      <p>Loading page 1...</p>
-                    </div>
+                {/* Render all pages for complete document viewing */}
+                {(() => {
+                  const pageCount = numPages[type] || 0;
+                  console.log(`Rendering ${pageCount} pages for ${type}`);
+                  
+                  if (pageCount === 0) {
+                    // Show loading state while PDF is loading
+                    return (
+                      <MemoizedPage
+                        pageNumber={1}
+                        scale={zoomLevel[type]}
+                        loading={
+                          <div className="page-loading">
+                            <div className="loading-spinner"></div>
+                            <p>Loading PDF...</p>
+                          </div>
+                        }
+                      />
+                    );
                   }
-                />
-                {numPages[type] > 1 && (
-                  <Page
-                    pageNumber={2}
-                    scale={zoomLevel[type]}
-                    loading={
-                      <div className="page-loading">
-                        <div className="loading-spinner"></div>
-                        <p>Loading page 2...</p>
-                      </div>
-                    }
-                  />
-                )}
-                {numPages[type] > 2 && (
-                  <Page
-                    pageNumber={3}
-                    scale={zoomLevel[type]}
-                    loading={
-                      <div className="page-loading">
-                        <div className="loading-spinner"></div>
-                        <p>Loading page 3...</p>
-                      </div>
-                    }
-                  />
-                )}
+                  
+                  // Render all pages
+                  const pages = [];
+                  for (let i = 1; i <= pageCount; i++) {
+                    pages.push(
+                      <MemoizedPage
+                        key={`page_${i}`}
+                        pageNumber={i}
+                        scale={zoomLevel[type]}
+                        loading={
+                          <div className="page-loading">
+                            <div className="loading-spinner"></div>
+                          </div>
+                        }
+                      />
+                    );
+                  }
+                  
+                  console.log(`Created ${pages.length} page components for ${type}`);
+                  return pages;
+                })()}
               </Document>
             </div>
           )}
@@ -458,7 +480,7 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
             <strong>Tip:</strong> Use the zoom controls to adjust the view. Enable "Sync Zoom" to keep both PDFs at the same zoom level.
           </div>
           <div className="info-item">
-            <strong>Navigation:</strong> Scroll through the PDFs naturally. Enable "Sync Scroll" to synchronize scrolling between both PDF viewers.
+            <strong>Navigation:</strong> Scroll through all pages of the PDFs naturally. Enable "Sync Scroll" to synchronize scrolling between both PDF viewers.
           </div>
           <div className="info-item">
             <strong>Sections:</strong> Use the "Sections" button to quickly navigate to specific RSI sections in both PDFs.
@@ -467,7 +489,7 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
             <strong>Search:</strong> Use the search box to find specific content in both PDFs simultaneously.
           </div>
           <div className="info-item">
-            <strong>PDF Viewing:</strong> All pages are rendered for smooth scrolling experience.
+            <strong>PDF Viewing:</strong> All pages are rendered for complete document viewing and smooth scrolling.
           </div>
         </div>
       )}

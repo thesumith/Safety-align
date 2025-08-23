@@ -241,6 +241,9 @@
   scroll-behavior: smooth;
   height: 100%;
   min-height: 0;
+  /* Prevent shaking */
+  transform: translateZ(0);
+  will-change: scroll-position;
 }
 
 .pdf-content {
@@ -251,6 +254,8 @@
   padding: 20px;
   width: 100%;
   box-sizing: border-box;
+  /* Prevent shaking */
+  transform: translateZ(0);
 }
 
 /* React-PDF specific styles */
@@ -260,6 +265,8 @@
   align-items: center;
   width: 100%;
   min-height: 100%;
+  /* Prevent shaking */
+  transform: translateZ(0);
 }
 
 .react-pdf__Page {
@@ -268,12 +275,17 @@
   border-radius: 4px;
   overflow: hidden;
   max-width: 100%;
+  /* Prevent shaking */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .react-pdf__Page__canvas {
   display: block;
   max-width: 100%;
   height: auto;
+  /* Prevent shaking */
+  transform: translateZ(0);
 }
 
 .react-pdf__Page__textContent {
