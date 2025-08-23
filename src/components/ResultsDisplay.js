@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FaDownload, FaChartBar, FaExclamationTriangle, FaCheckCircle, FaFileAlt, FaRedo } from 'react-icons/fa';
+import { FaDownload, FaChartBar, FaExclamationTriangle, FaCheckCircle, FaFileAlt, FaRedo, FaEye } from 'react-icons/fa';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
+import PDFViewer from './PDFViewer';
 import './ResultsDisplay.css';
 
 const ResultsDisplay = ({ results, outputDir, onReset }) => {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(null);
+  const [showPDFViewer, setShowPDFViewer] = useState(false);
 
   const summary = results.summary || {};
   const detailedResults = results.detailed_results || {};
@@ -112,11 +114,25 @@ const ResultsDisplay = ({ results, outputDir, onReset }) => {
     >
       <div className="results-header">
         <h2>Analysis Summary</h2>
-        <button className="btn btn-outline" onClick={onReset}>
-          <FaRedo />
-          New Comparison
-        </button>
+        <div className="header-buttons">
+          <button 
+            className={`btn ${showPDFViewer ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setShowPDFViewer(!showPDFViewer)}
+          >
+            <FaEye />
+            {showPDFViewer ? 'Hide PDF View' : 'Show PDF View'}
+          </button>
+          <button className="btn btn-outline" onClick={onReset}>
+            <FaRedo />
+            New Comparison
+          </button>
+        </div>
       </div>
+
+      {/* PDF Viewer */}
+      {showPDFViewer && (
+        <PDFViewer results={results} outputDir={outputDir} />
+      )}
 
       <div className="results-grid">
         {/* Summary Cards */}
