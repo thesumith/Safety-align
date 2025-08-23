@@ -195,17 +195,6 @@ const FileUpload = ({
                 <label className="checkbox-item">
                   <input
                     type="checkbox"
-                    checked={settings.generateHtml}
-                    onChange={(e) => setSettings(prev => ({ 
-                      ...prev, 
-                      generateHtml: e.target.checked 
-                    }))}
-                  />
-                  <span>HTML Report</span>
-                </label>
-                <label className="checkbox-item">
-                  <input
-                    type="checkbox"
                     checked={settings.generateExcel}
                     onChange={(e) => setSettings(prev => ({ 
                       ...prev, 

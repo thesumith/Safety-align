@@ -16,7 +16,6 @@ function App() {
 
   const [settings, setSettings] = useState({
     similarityThreshold: 0.7,
-    generateHtml: true,
     generateExcel: true,
     generatePdf: true
   });

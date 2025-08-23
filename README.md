@@ -7,7 +7,7 @@ A comprehensive Python-based tool for comparing Regulatory Safety Information (R
 - **PDF Processing**: Extract text from both digital and scanned PDFs using OCR
 - **Section Identification**: Automatically identify and parse RSI sections (Indications, Contraindications, Warnings, etc.)
 - **Multi-Method Comparison**: Uses exact matching, fuzzy matching, and semantic similarity
-- **Comprehensive Reports**: Generate HTML, Excel, and PDF reports
+- **Comprehensive Reports**: Generate Excel and PDF reports
 - **Web Interface**: User-friendly Streamlit web application
 - **Command Line Interface**: Full CLI support for automation
 
@@ -89,21 +89,15 @@ print(f"Sections with issues: {results['summary']['sections_with_issues']}")
 
 ## 📊 Output Reports
 
-The tool generates three types of reports:
+The tool generates two types of reports:
 
-### 1. HTML Report
-- Interactive web-based report
-- Color-coded similarity scores
-- Expandable section details
-- Side-by-side comparison view
-
-### 2. Excel Report
+### 1. Excel Report
 - Summary sheet with key metrics
 - Detailed comparison sheet
 - Missing content sheet
 - Formatted tables with conditional formatting
 
-### 3. PDF Report
+### 2. PDF Report
 - Professional PDF format
 - Executive summary
 - Detailed section analysis
@@ -220,7 +214,6 @@ Sections Needing Attention:
   - drug_interactions: 89.3% similarity
 
 Reports generated in: output
-  - HTML: output/rsi_comparison_report.html
   - EXCEL: output/rsi_comparison_report.xlsx
   - PDF: output/rsi_comparison_report.pdf
 ```
