@@ -11,6 +11,12 @@
   border-bottom: 1px solid #e9ecef;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
 .results-header h2 {
   color: #2c3e50;
   margin: 0;
@@ -254,6 +260,12 @@
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
+  }
+  
+  .header-buttons {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.75rem;
   }
   
   .summary-cards {
