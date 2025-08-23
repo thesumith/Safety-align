@@ -65,6 +65,10 @@ class ComparisonEngine:
             'overdose'                      # 4.9 Overdose (includes content until document end)
         ]
         
+        # Filter sections to only include 4.1 to 4.9
+        comparator_sections = self._filter_sections_to_4_1_to_4_9(comparator_sections)
+        our_sections = self._filter_sections_to_4_1_to_4_9(our_sections)
+        
         # Handle edge cases quickly
         if not comparator_sections and not our_sections:
             return {'no_content': self._create_empty_result()}
@@ -80,10 +84,6 @@ class ComparisonEngine:
                 if section_name in comparator_sections:
                     ordered_results[section_name] = self._create_missing_section_result(
                         section_name, comparator_sections[section_name])
-            # Add any remaining sections not in the specified order
-            for name, section in comparator_sections.items():
-                if name not in ordered_results:
-                    ordered_results[name] = self._create_missing_section_result(name, section)
             return ordered_results
         
         # Enhanced section matching with content-based fallback
@@ -119,7 +119,7 @@ class ComparisonEngine:
                         section_name, comp_section)
                 processed_sections.add(section_name)
         
-        # Handle remaining sections not in the specified order
+        # Handle remaining sections not in the specified order (should be minimal after filtering)
         unmatched_comp = set(comparator_sections.keys()) - processed_sections
         unmatched_our = set(our_sections.keys()) - set(section_matches.values())
         
@@ -149,35 +149,34 @@ class ComparisonEngine:
         for our_section_name in unmatched_our:
             our_section = our_sections[our_section_name]
             
-            # Check if this could match any critical section type
-            if self._is_critical_section(our_section_name):
-                # Try to find content-based match in all comparator sections
-                best_match = self._find_best_content_match(our_section, comparator_sections.keys(), comparator_sections)
-                
-                if best_match and best_match not in section_matches and best_match not in ordered_results:
-                    # Found content match - create comparison under our section name
-                    comp_section = comparator_sections[best_match]
-                    ordered_results[our_section_name] = self._fast_compare_sections(comp_section, our_section)
-                else:
-                    # This is a critical section missing from comparator - compare against full document
-                    full_comparator_content = self._get_full_document_content(comparator_sections)
-                    if full_comparator_content:
-                        pseudo_comp_section = Section(
-                            name=our_section_name,
-                            content=full_comparator_content,
-                            start_line=0,
-                            end_line=1000,
-                            confidence=0.3
-                        )
-                        ordered_results[our_section_name] = self._fast_compare_sections(pseudo_comp_section, our_section)
+            # Only process sections that are in our allowed list (4.1 to 4.9)
+            if our_section_name in section_order:
+                # Check if this could match any critical section type
+                if self._is_critical_section(our_section_name):
+                    # Try to find content-based match in all comparator sections
+                    best_match = self._find_best_content_match(our_section, comparator_sections.keys(), comparator_sections)
+                    
+                    if best_match and best_match not in section_matches and best_match not in ordered_results:
+                        # Found content match - create comparison under our section name
+                        comp_section = comparator_sections[best_match]
+                        ordered_results[our_section_name] = self._fast_compare_sections(comp_section, our_section)
                     else:
-                        # Fallback to extra section
-                        ordered_results[f"extra_{our_section_name}"] = self._create_extra_section_result(
-                            our_section_name, our_section)
-            else:
-                # Non-critical extra section
-                ordered_results[f"extra_{our_section_name}"] = self._create_extra_section_result(
-                    our_section_name, our_section)
+                        # This is a critical section missing from comparator - compare against full document
+                        full_comparator_content = self._get_full_document_content(comparator_sections)
+                        if full_comparator_content:
+                            pseudo_comp_section = Section(
+                                name=our_section_name,
+                                content=full_comparator_content,
+                                start_line=0,
+                                end_line=1000,
+                                confidence=0.3
+                            )
+                            ordered_results[our_section_name] = self._fast_compare_sections(pseudo_comp_section, our_section)
+                        else:
+                            # Fallback to extra section (but only for allowed sections)
+                            ordered_results[f"extra_{our_section_name}"] = self._create_extra_section_result(
+                                our_section_name, our_section)
+            # Skip sections that are not in our allowed list (4.1 to 4.9)
         
         return self._ensure_section_order(ordered_results)
     
@@ -194,17 +193,23 @@ class ComparisonEngine:
             'overdose'                      # 4.9 Overdose (includes content until document end)
         ]
         
+        # Define allowed sections set for quick lookup
+        allowed_sections = set(section_order)
+        
         ordered_results = {}
         
-        # First, add sections in the specified order
+        # First, add sections in the specified order (only allowed sections)
         for section_name in section_order:
             if section_name in results:
                 ordered_results[section_name] = results[section_name]
         
-        # Then add any remaining sections
+        # Then add any remaining allowed sections (should be minimal after filtering)
         for section_name, result in results.items():
-            if section_name not in ordered_results:
+            if section_name not in ordered_results and section_name in allowed_sections:
                 ordered_results[section_name] = result
+        
+        # Log the final ordering
+        logger.info(f"Final ordered sections: {list(ordered_results.keys())}")
         
         return ordered_results
     
@@ -492,8 +497,8 @@ class ComparisonEngine:
         
         # Fast normalization - only essential changes
         text = re.sub(r'\s+', ' ', text.lower().strip())
-        # Remove numbers that might vary between documents
-        text = self.number_pattern.sub('NUM', text)
+        # Don't replace numbers with NUM to preserve actual numbers in display
+        # Only normalize whitespace and case
         return text
     
     def _create_empty_result(self) -> ComparisonResult:
@@ -560,13 +565,26 @@ class ComparisonEngine:
                 'sections_needing_attention': []
             }
         
-        # Fast summary calculation
+        # Define the allowed sections (4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9)
+        allowed_sections = {
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
+        }
+        
+        # Fast summary calculation - only consider allowed sections
         similarities = []
         missing_sections = []
         sections_needing_attention = []
         
         for section_name, result in comparison_results.items():
-            if section_name.startswith('extra_'):
+            # Skip extra sections and sections not in allowed list
+            if section_name.startswith('extra_') or section_name not in allowed_sections:
                 continue
                 
             similarities.append(result.similarity_score)
@@ -590,3 +608,29 @@ class ComparisonEngine:
             'missing_sections': missing_sections,
             'sections_needing_attention': sections_needing_attention
         }
+
+    def _filter_sections_to_4_1_to_4_9(self, sections: Dict[str, Section]) -> Dict[str, Section]:
+        """Filter sections to only include 4.1 to 4.9"""
+        # Define the allowed sections (4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9)
+        allowed_sections = {
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
+        }
+        
+        # Filter sections to only include allowed ones
+        filtered_sections = {}
+        for section_name, section in sections.items():
+            if section_name in allowed_sections:
+                filtered_sections[section_name] = section
+        
+        # Log the filtering results
+        logger.info(f"Filtered sections: {list(filtered_sections.keys())}")
+        logger.info(f"Total sections before filtering: {len(sections)}, sections after filtering: {len(filtered_sections)}")
+        
+        return filtered_sections

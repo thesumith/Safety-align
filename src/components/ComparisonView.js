@@ -37,7 +37,40 @@ const ComparisonView = ({ results, outputDir }) => {
       .replace('extra ', '');
   };
 
+  // Define SMPC section order (4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9)
+  const smpcSectionOrder = [
+    'therapeutic_indications',      // 4.1 Therapeutic indications
+    'contraindications',            // 4.3 Contraindications
+    'special_warnings_precautions', // 4.4 Special warnings and precautions
+    'interactions_medicinal_products', // 4.5 Interactions
+    'fertility_pregnancy_lactation', // 4.6 Fertility, pregnancy and lactation
+    'effects_ability_drive_machines', // 4.7 Effects on ability to drive
+    'undesirable_effects',          // 4.8 Undesirable effects
+    'overdose'                      // 4.9 Overdose
+  ];
+
+  const sortSectionsInSmpcOrder = (sections) => {
+    const sortedEntries = [];
+    
+    // First, add sections in SMPC order
+    for (const sectionName of smpcSectionOrder) {
+      if (sections[sectionName]) {
+        sortedEntries.push([sectionName, sections[sectionName]]);
+      }
+    }
+    
+    // Then add any remaining sections (should be minimal after filtering)
+    for (const [sectionName, result] of Object.entries(sections)) {
+      if (!smpcSectionOrder.includes(sectionName)) {
+        sortedEntries.push([sectionName, result]);
+      }
+    }
+    
+    return sortedEntries;
+  };
+
   const sections = results.detailed_results || {};
+  const sortedSections = sortSectionsInSmpcOrder(sections);
 
   return (
     <motion.div 
@@ -73,7 +106,7 @@ const ComparisonView = ({ results, outputDir }) => {
                 <span className="panel-subtitle">Reference Document</span>
               </div>
               <div className="panel-content">
-                {Object.entries(sections).map(([sectionName, result]) => (
+                {sortedSections.map(([sectionName, result]) => (
                   <div key={`comp-${sectionName}`} className="section-item">
                     <div className="section-header">
                       <span className="section-name">{formatSectionName(sectionName)}</span>
@@ -118,7 +151,7 @@ const ComparisonView = ({ results, outputDir }) => {
                 <span className="panel-subtitle">Document Under Review</span>
               </div>
               <div className="panel-content">
-                {Object.entries(sections).map(([sectionName, result]) => (
+                {sortedSections.map(([sectionName, result]) => (
                   <div key={`our-${sectionName}`} className="section-item">
                     <div className="section-header">
                       <span className="section-name">{formatSectionName(sectionName)}</span>
@@ -150,7 +183,7 @@ const ComparisonView = ({ results, outputDir }) => {
         ) : (
           <div className="full-view">
             <div className="sections-list">
-              {Object.entries(sections).map(([sectionName, result]) => (
+              {sortedSections.map(([sectionName, result]) => (
                 <motion.div 
                   key={sectionName}
                   className="section-card"

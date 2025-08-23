@@ -221,7 +221,34 @@ class SectionParser:
             ultra_aggressive_sections = self._ultra_aggressive_detection(text, sections.keys())
             sections.update(ultra_aggressive_sections)
         
-        return sections
+        # Filter to only include sections 4.1 to 4.9 and return in defined order
+        return self._filter_and_order_sections(sections)
+    
+    def _filter_and_order_sections(self, sections: Dict[str, Section]) -> Dict[str, Section]:
+        """Filter sections to only include 4.1 to 4.9 and return in defined order"""
+        # Define the allowed sections in the correct order (4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9)
+        allowed_sections = [
+            'therapeutic_indications',      # 4.1 Therapeutic indications (includes content until 4.2)
+            'contraindications',            # 4.3 Contraindications (includes content until 4.4)
+            'special_warnings_precautions', # 4.4 Special warnings and precautions for use (includes content until 4.5)
+            'interactions_medicinal_products', # 4.5 Interaction with other medicinal products (includes content until 4.6)
+            'fertility_pregnancy_lactation', # 4.6 Fertility, pregnancy and lactation (includes content until 4.7)
+            'effects_ability_drive_machines', # 4.7 Effects on ability to drive and use machines (includes content until 4.8)
+            'undesirable_effects',          # 4.8 Undesirable effects (includes content until 4.9)
+            'overdose'                      # 4.9 Overdose (includes content until document end)
+        ]
+        
+        # Filter sections to only include allowed ones
+        filtered_sections = {}
+        for section_name in allowed_sections:
+            if section_name in sections:
+                filtered_sections[section_name] = sections[section_name]
+        
+        # Log the filtering results
+        logger.info(f"Filtered sections: {list(filtered_sections.keys())}")
+        logger.info(f"Total sections found: {len(sections)}, sections after filtering: {len(filtered_sections)}")
+        
+        return filtered_sections
     
     def _detect_eight_core_sections(self, lines: List[str]) -> Dict[str, Section]:
         """Detect the 8 core SmPC sections with proper boundary handling"""
@@ -230,13 +257,13 @@ class SectionParser:
         # Define the core sections with their exact section numbers and boundaries
         # Each section includes content from its start until the next section in the sequence
         core_sections = {
-            '4.1': 'therapeutic_indications',      # 4.1 includes content until 4.3 (includes 4.2)
-            '4.3': 'contraindications',            # 4.3 includes content until 4.5 (includes 4.4)
-            '4.4': 'special_warnings_precautions', # 4.4 includes content until 4.6 (includes 4.5)
-            '4.5': 'interactions_medicinal_products', # 4.5 includes content until 4.7 (includes 4.6)
-            '4.6': 'fertility_pregnancy_lactation', # 4.6 includes content until 4.8 (includes 4.7)
-            '4.7': 'effects_ability_drive_machines', # 4.7 includes content until 4.9 (includes 4.8)
-            '4.8': 'undesirable_effects',          # 4.8 includes content until 5.0 (includes 4.9)
+            '4.1': 'therapeutic_indications',      # 4.1 includes content until 4.2 (therapeutic indications only)
+            '4.3': 'contraindications',            # 4.3 includes content until 4.4 (contraindications only)
+            '4.4': 'special_warnings_precautions', # 4.4 includes content until 4.5 (special warnings only)
+            '4.5': 'interactions_medicinal_products', # 4.5 includes content until 4.6 (interactions only)
+            '4.6': 'fertility_pregnancy_lactation', # 4.6 includes content until 4.7 (fertility/pregnancy only)
+            '4.7': 'effects_ability_drive_machines', # 4.7 includes content until 4.8 (driving/machines only)
+            '4.8': 'undesirable_effects',          # 4.8 includes content until 4.9 (undesirable effects only)
             '4.9': 'overdose'                      # 4.9 includes content until document end
         }
         
@@ -303,23 +330,23 @@ class SectionParser:
         """Find section end by looking for the next section number in sequence"""
         
         # Define the section boundaries based on your requirements:
-        # 4.1 includes content until 4.3 (includes 4.2)
-        # 4.3 includes content until 4.5 (includes 4.4)
-        # 4.4 includes content until 4.6 (includes 4.5)
-        # 4.5 includes content until 4.7 (includes 4.6)
-        # 4.6 includes content until 4.8 (includes 4.7)
-        # 4.7 includes content until 4.9 (includes 4.8)
-        # 4.8 includes content until 5.0 (includes 4.9)
+        # 4.1 includes content until 4.2 (therapeutic indications only)
+        # 4.3 includes content until 4.4 (contraindications only)
+        # 4.4 includes content until 4.5 (special warnings only)
+        # 4.5 includes content until 4.6 (interactions only)
+        # 4.6 includes content until 4.7 (fertility/pregnancy only)
+        # 4.7 includes content until 4.8 (driving/machines only)
+        # 4.8 includes content until 4.9 (undesirable effects only)
         # 4.9 includes content until document end or next major section
         
         section_boundaries = {
-            '4.1': '4.3',  # 4.1 includes content until 4.3 (includes 4.2)
-            '4.3': '4.5',  # 4.3 includes content until 4.5 (includes 4.4)
-            '4.4': '4.6',  # 4.4 includes content until 4.6 (includes 4.5)
-            '4.5': '4.7',  # 4.5 includes content until 4.7 (includes 4.6)
-            '4.6': '4.8',  # 4.6 includes content until 4.8 (includes 4.7)
-            '4.7': '4.9',  # 4.7 includes content until 4.9 (includes 4.8)
-            '4.8': '5.0',  # 4.8 includes content until 5.0 (includes 4.9)
+            '4.1': '4.2',  # 4.1 includes content until 4.2 (therapeutic indications only)
+            '4.3': '4.4',  # 4.3 includes content until 4.4 (contraindications only)
+            '4.4': '4.5',  # 4.4 includes content until 4.5 (special warnings only)
+            '4.5': '4.6',  # 4.5 includes content until 4.6 (interactions only)
+            '4.6': '4.7',  # 4.6 includes content until 4.7 (fertility/pregnancy only)
+            '4.7': '4.8',  # 4.7 includes content until 4.8 (driving/machines only)
+            '4.8': '4.9',  # 4.8 includes content until 4.9 (undesirable effects only)
             '4.9': '5.1'   # 4.9 includes content until section 5 or document end
         }
         
