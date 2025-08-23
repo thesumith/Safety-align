@@ -1,26 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { FaDownload, FaExpand, FaCompress, FaSync, FaEye, FaEyeSlash, FaSearch, FaSearchMinus, FaSearchPlus, FaChevronLeft, FaChevronRight, FaList, FaBookmark } from 'react-icons/fa';
+import { FaDownload, FaExpand, FaCompress, FaSync, FaEye, FaEyeSlash, FaSearch, FaSearchMinus, FaSearchPlus, FaList, FaBookmark } from 'react-icons/fa';
 import './PDFViewer.css';
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) => {
-  const [pdfLoaded, setPdfLoaded] = useState({ comparator: false, our: false });
+  console.log('PDFViewer props:', { comparatorPdfUrl, ourPdfUrl, outputDir });
+  
   const [pdfError, setPdfError] = useState({ comparator: null, our: null });
   const [zoomLevel, setZoomLevel] = useState({ comparator: 1, our: 1 });
   const [showControls, setShowControls] = useState(true);
   const [syncZoom, setSyncZoom] = useState(true);
   const [syncScroll, setSyncScroll] = useState(true);
-  const [currentPage, setCurrentPage] = useState({ comparator: 1, our: 1 });
-  const [totalPages, setTotalPages] = useState({ comparator: 0, our: 0 });
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState({ comparator: [], our: [] });
   const [numPages, setNumPages] = useState({ comparator: 0, our: 0 });
   const [showSectionNavigator, setShowSectionNavigator] = useState(false);
   const [sectionPositions, setSectionPositions] = useState({});
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState({ comparator: true, our: true });
 
   // Refs for PDF containers
   const comparatorRef = useRef(null);
@@ -44,19 +44,27 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
 
   useEffect(() => {
     // Reset states when PDF URLs change
-    setPdfLoaded({ comparator: false, our: false });
     setPdfError({ comparator: null, our: null });
     setZoomLevel({ comparator: 1, our: 1 });
-    setCurrentPage({ comparator: 1, our: 1 });
-    setTotalPages({ comparator: 0, our: 0 });
-    setSearchResults({ comparator: [], our: [] });
+    setSearchTerm('');
     setNumPages({ comparator: 0, our: 0 });
     setSectionPositions({});
+    setPdfLoading({ comparator: true, our: true });
   }, [comparatorPdfUrl, ourPdfUrl]);
 
   // Function to handle synchronized scrolling
   const handleScroll = useCallback((type, event) => {
-    if (!syncScroll) return;
+    if (!syncScroll || isScrolling) return;
+    
+    console.log(`Scroll event for ${type}:`, {
+      scrollTop: event.target.scrollTop,
+      scrollHeight: event.target.scrollHeight,
+      clientHeight: event.target.clientHeight,
+      syncScroll,
+      isScrolling
+    });
+    
+    setIsScrolling(true);
     
     const sourceElement = event.target;
     const sourceScrollTop = sourceElement.scrollTop;
@@ -76,9 +84,21 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
       const targetClientHeight = targetElement.clientHeight;
       const targetScrollTop = scrollPercentage * (targetScrollHeight - targetClientHeight);
       
+      console.log(`Syncing scroll to ${targetType}:`, {
+        targetScrollTop,
+        targetScrollHeight,
+        targetClientHeight,
+        scrollPercentage
+      });
+      
       targetElement.scrollTop = targetScrollTop;
     }
-  }, [syncScroll]);
+    
+    // Reset scrolling flag after a short delay
+    setTimeout(() => {
+      setIsScrolling(false);
+    }, 100);
+  }, [syncScroll, isScrolling]);
 
   // Function to handle synchronized zoom
   const handleZoomChange = useCallback((type, newZoom) => {
@@ -93,24 +113,10 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
     }
   }, [syncZoom]);
 
-  // Function to handle synchronized page navigation
-  const handlePageChange = useCallback((type, newPage) => {
-    const clampedPage = Math.max(1, Math.min(numPages[type] || 1, newPage));
-    setCurrentPage(prev => ({ ...prev, [type]: clampedPage }));
-    
-    if (syncScroll) {
-      setCurrentPage(prev => ({ 
-        comparator: clampedPage, 
-        our: clampedPage 
-      }));
-    }
-  }, [syncScroll, numPages]);
-
   // Function to search within PDFs
   const handleSearch = useCallback((term) => {
     setSearchTerm(term);
     if (!term.trim()) {
-      setSearchResults({ comparator: [], our: [] });
       return;
     }
     
@@ -147,15 +153,16 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
   }, []);
 
   const onDocumentLoadSuccess = (type, { numPages }) => {
+    console.log(`PDF loaded for ${type}: ${numPages} pages`);
     setNumPages(prev => ({ ...prev, [type]: numPages }));
-    setPdfLoaded(prev => ({ ...prev, [type]: true }));
     setPdfError(prev => ({ ...prev, [type]: null }));
+    setPdfLoading(prev => ({ ...prev, [type]: false }));
   };
 
   const onDocumentLoadError = (type, error) => {
     console.error(`PDF Error for ${type}:`, error);
-    setPdfLoaded(prev => ({ ...prev, [type]: false }));
     setPdfError(prev => ({ ...prev, [type]: error }));
+    setPdfLoading(prev => ({ ...prev, [type]: false }));
   };
 
   const resetZoom = () => {
@@ -237,28 +244,6 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
         <div className="pdf-header">
           <h4>{title}</h4>
           <div className="pdf-controls">
-            <div className="page-controls">
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={() => handlePageChange(type, currentPage[type] - 1)}
-                disabled={currentPage[type] <= 1}
-                title="Previous Page"
-              >
-                <FaChevronLeft />
-              </button>
-              <span className="page-info">
-                {currentPage[type]} / {numPages[type] || '?'}
-              </span>
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={() => handlePageChange(type, currentPage[type] + 1)}
-                disabled={currentPage[type] >= (numPages[type] || 1)}
-                title="Next Page"
-              >
-                <FaChevronRight />
-              </button>
-            </div>
-            
             <button
               className="btn btn-sm btn-outline"
               onClick={() => downloadPdf(type)}
@@ -335,15 +320,41 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
                   </div>
                 }
               >
+                {/* Simplified rendering for testing */}
                 <Page
-                  pageNumber={currentPage[type]}
+                  pageNumber={1}
                   scale={zoomLevel[type]}
                   loading={
                     <div className="page-loading">
                       <div className="loading-spinner"></div>
+                      <p>Loading page 1...</p>
                     </div>
                   }
                 />
+                {numPages[type] > 1 && (
+                  <Page
+                    pageNumber={2}
+                    scale={zoomLevel[type]}
+                    loading={
+                      <div className="page-loading">
+                        <div className="loading-spinner"></div>
+                        <p>Loading page 2...</p>
+                      </div>
+                    }
+                  />
+                )}
+                {numPages[type] > 2 && (
+                  <Page
+                    pageNumber={3}
+                    scale={zoomLevel[type]}
+                    loading={
+                      <div className="page-loading">
+                        <div className="loading-spinner"></div>
+                        <p>Loading page 3...</p>
+                      </div>
+                    }
+                  />
+                )}
               </Document>
             </div>
           )}
@@ -447,7 +458,7 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
             <strong>Tip:</strong> Use the zoom controls to adjust the view. Enable "Sync Zoom" to keep both PDFs at the same zoom level.
           </div>
           <div className="info-item">
-            <strong>Navigation:</strong> Use page controls to navigate through PDFs. Enable "Sync Scroll" to synchronize scrolling between both PDF viewers.
+            <strong>Navigation:</strong> Scroll through the PDFs naturally. Enable "Sync Scroll" to synchronize scrolling between both PDF viewers.
           </div>
           <div className="info-item">
             <strong>Sections:</strong> Use the "Sections" button to quickly navigate to specific RSI sections in both PDFs.
@@ -456,7 +467,7 @@ const PDFViewer = ({ comparatorPdfUrl, ourPdfUrl, outputDir, sections = {} }) =>
             <strong>Search:</strong> Use the search box to find specific content in both PDFs simultaneously.
           </div>
           <div className="info-item">
-            <strong>PDF Viewing:</strong> PDFs are rendered using react-pdf for better compatibility and performance.
+            <strong>PDF Viewing:</strong> All pages are rendered for smooth scrolling experience.
           </div>
         </div>
       )}

@@ -83,6 +83,19 @@
   gap: 0;
   height: 70vh;
   min-height: 500px;
+  position: relative;
+}
+
+.pdf-comparison-container.with-navigator {
+  grid-template-columns: 280px 1fr 1fr;
+}
+
+.pdf-comparison-container.with-navigator .pdf-panel:first-child {
+  grid-column: 2;
+}
+
+.pdf-comparison-container.with-navigator .pdf-panel:last-child {
+  grid-column: 3;
 }
 
 .pdf-panel {
@@ -91,6 +104,8 @@
   flex-direction: column;
   background: #f8f9fa;
   position: relative;
+  height: 100%;
+  overflow: hidden;
 }
 
 .pdf-panel:last-child {
@@ -102,6 +117,7 @@
   flex-direction: column;
   height: 100%;
   background: white;
+  overflow: hidden;
 }
 
 .pdf-header {
@@ -112,6 +128,7 @@
   background: #f8f9fa;
   border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
+  z-index: 10;
 }
 
 .pdf-header h4 {
@@ -222,6 +239,8 @@
   overflow: auto;
   background: #f8f9fa;
   scroll-behavior: smooth;
+  height: 100%;
+  min-height: 0;
 }
 
 .pdf-content {
@@ -230,6 +249,8 @@
   align-items: flex-start;
   min-height: 100%;
   padding: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* React-PDF specific styles */
@@ -237,6 +258,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  min-height: 100%;
 }
 
 .react-pdf__Page {
@@ -244,6 +267,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   border-radius: 4px;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .react-pdf__Page__canvas {
@@ -672,28 +696,6 @@
     background: #bbdefb;
     transform: scale(1.02);
   }
-}
-
-/* Adjust PDF comparison container when section navigator is shown */
-.pdf-comparison-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  height: 70vh;
-  min-height: 500px;
-  position: relative;
-}
-
-.pdf-comparison-container.with-navigator {
-  grid-template-columns: 280px 1fr 1fr;
-}
-
-.pdf-comparison-container.with-navigator .pdf-panel:first-child {
-  grid-column: 2;
-}
-
-.pdf-comparison-container.with-navigator .pdf-panel:last-child {
-  grid-column: 3;
 }
 
 /* Responsive adjustments for section navigator */
